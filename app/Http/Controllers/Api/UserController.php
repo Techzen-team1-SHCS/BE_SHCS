@@ -38,7 +38,7 @@ class UserController extends Controller
         }
     }
 
-    public function login(LoginRequest $request)
+    public function login(LoginRequest $request) ///
     {
         $result = $this->user->login($request->validated());
 
@@ -55,5 +55,18 @@ class UserController extends Controller
             'data' => $result
         ]);
     }
+   public function logout(Request $request)
+{
+    $user = $request->user();
+
+    if (!$user) {
+        return response()->json(['message' => 'Token không hợp lệ hoặc chưa đăng nhập'], 401);
+    }
+
+    // Thu hồi token hiện tại
+    $user->token()->revoke();
+
+    return response()->json(['message' => 'Đăng xuất thành công']);
+}
 
 }
