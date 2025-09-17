@@ -30,5 +30,11 @@ return [
         'secret' => env('AWS_SECRET_ACCESS_KEY'),
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
+    'passport' => [
+    'url' => env('PASSPORT_LOGIN_ENDPOINT', 'http://passport-app.com/oauth/token'),
+    'client_id' => env('PASSPORT_CLIENT_ID'),
+    'client_secret' => env('PASSPORT_CLIENT_SECRET'),
+],
+
 
 ];

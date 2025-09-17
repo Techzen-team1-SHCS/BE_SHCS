@@ -3,7 +3,9 @@
 namespace App\Services;
 
 use App\Repositories\UserRepositories;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
 
 class UserServices{
     protected $user;
@@ -14,7 +16,7 @@ class UserServices{
     public function signup(array $data){
         $data['password']=Hash::make($data['password']);
         $data['role']=$data['role'] ?? 0;
-        
+
         return $this->user->create($data);
     }
     public function login(array $data){
@@ -35,5 +37,6 @@ class UserServices{
         ];
 
     }
+
 
 }
