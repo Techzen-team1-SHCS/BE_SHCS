@@ -4,10 +4,13 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\LoginRequest;
+use App\Http\Requests\PasswordResetRequest;
 use App\Http\Requests\UserRequest;
+use App\Models\User;
 use App\Services\UserServices;
+use GuzzleHttp\Client;
 use Illuminate\Http\Request;
-
+use Illuminate\Support\Str;
 class UserController extends Controller
 {
     protected $user;
@@ -56,7 +59,7 @@ class UserController extends Controller
         ]);
     }
    public function logout(Request $request)
-{
+   {
     $user = $request->user();
 
     if (!$user) {
@@ -67,6 +70,65 @@ class UserController extends Controller
     $user->token()->revoke();
 
     return response()->json(['message' => 'Đăng xuất thành công']);
-}
+    }
+    public function passwordRetrieval(PasswordResetRequest $request)
+    {
+        $this->user->resetPassword($request->email);
+        return response()->json(['status' => 200, 'message' => 'New password sent to email']);
+    }
+    public function loginGoogle(Request $request)
+{
+    try {
+        $request->validate([
+            'id_token' => 'required|string',
+        ]);
 
+        $client = new Client();
+
+        $response = $client->get('https://oauth2.googleapis.com/tokeninfo', [
+            'query' => ['id_token' => $request->id_token],
+        ]);
+
+        $googleUser = json_decode($response->getBody(), true);
+
+        // Debug log
+
+
+    if (!isset($googleUser['email_verified']) || $googleUser['email_verified'] !== 'true') {
+        return response()->json([
+            'status' => false,
+            'message' => 'Email chưa xác thực'
+        ], 403);
+    }
+
+    $email = $googleUser['email'];
+    $name = $googleUser['name'] ?? explode('@', $email)[0];
+    $avatar = $googleUser['picture'] ?? null;
+
+    $user = User::firstOrCreate(
+        ['email' => $email],
+        [
+            'name' => $name,
+            'avatar' => $avatar,
+            'password' => bcrypt(Str::random(16))
+        ]
+    );
+
+    $token = $user->createToken('GoogleToken')->accessToken;
+
+        return response()->json([
+            'status' => true,
+            'token' => $token,
+            'user' => $user,
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'status' => false,
+            'message' => 'Lỗi đăng nhập Google: ' . $e->getMessage()
+        ], 500);
+    }
+}
+    public function UpdateProfile(){
+        
+    }
 }
