@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Mail\MailPassword;
 use App\Models\User;
 use App\Repositories\UserRepositories;
+use CloudinaryLabs\CloudinaryLaravel\Facades\Cloudinary;
 use Error;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -51,13 +52,48 @@ class UserServices{
         Mail::to($email)->send(new MailPassword($newPassword));
         return $newPassword;
     }
-    public function updateProfile($id,array $data)
-    {
-        $user=User::FindOrFail($id);
-        if(isset($data['image']) && $data['image']->isValid()){
-            $file=$data['image'];
-            $imageDirectory='images/User/';
-        }
+
+
+    public function updateProfile($id, array $data)
+{
+    $user = $this->user->find($id);
+
+    if (!$user) {
+        throw new \Exception("User not found");
     }
+
+    // Xử lý avatar nếu có
+    if (!empty($data['avatar']) && $data['avatar']->isValid()) {
+        // Xóa avatar cũ nếu có public_id
+        if (!empty($user->avatar_public_id)) {
+            Cloudinary::destroy($user->avatar_public_id);
+        }
+
+        // Upload avatar mới lên Cloudinary
+        $uploaded = Cloudinary::upload(
+            $data['avatar']->getRealPath(),
+            ['folder' => "avatars/{$user->id}"]
+        );
+
+        $data['avatar'] = $uploaded->getSecurePath();
+        $data['avatar_public_id'] = $uploaded->getPublicId();
+    } else {
+        // Nếu không có file avatar mới thì loại bỏ key để không update
+        unset($data['avatar']);
+        unset($data['avatar_public_id']);
+    }
+
+    // Update tất cả dữ liệu còn lại (name, phone, avatar)
+    if (!empty($data)) {
+        $this->user->update($user, $data);
+    }
+
+    return $user->fresh(); // Refresh model để lấy dữ liệu mới
+}
+
+
+
+
+
 
 }

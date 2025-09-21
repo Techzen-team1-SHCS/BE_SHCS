@@ -6,11 +6,17 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\LoginRequest;
 use App\Http\Requests\PasswordResetRequest;
 use App\Http\Requests\UserRequest;
+use App\Models\Image;
 use App\Models\User;
 use App\Services\UserServices;
+use CloudinaryLabs\CloudinaryLaravel\Facades\Cloudinary;
 use GuzzleHttp\Client;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Cloudinary\Uploader; // từ SDK, không phải Facade Laravel
+use Illuminate\Support\Facades\DB;
+
 class UserController extends Controller
 {
     protected $user;
@@ -128,7 +134,53 @@ class UserController extends Controller
         ], 500);
     }
 }
-    public function UpdateProfile(){
-        
+   public function addUser(UserRequest $request)
+    {
+        $validated = $request->validated();
+
+        // 1️⃣ Tạo user
+        $user = User::create([
+            'name'     => $validated['name'],
+            'email'    => $validated['email'],
+            'phone'    => $validated['phone'] ?? '',
+            'password' => Hash::make($validated['password']),
+        ]);
+
+        // 2️⃣ Upload avatar lên ImgBB nếu có
+        $avatarUrl = '';
+        if ($request->hasFile('avatar') && $request->file('avatar')->isValid()) {
+            $file = $request->file('avatar');
+            $imgData = base64_encode(file_get_contents($file->getRealPath()));
+            $apiKey = env('IMGBB_API_KEY');
+
+            $ch = curl_init();
+            curl_setopt($ch, CURLOPT_URL, 'https://api.imgbb.com/1/upload?key='.$apiKey);
+            curl_setopt($ch, CURLOPT_POST, 1);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, ['image' => $imgData]);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+            $response = curl_exec($ch);
+            curl_close($ch);
+
+            $data = json_decode($response, true);
+            $avatarUrl = $data['data']['url'] ?? '';
+        }
+
+        // 3️⃣ Lưu avatar vào bảng images
+        if ($avatarUrl) {
+            Image::create([
+            'url' => $avatarUrl,
+            'type' => 'avatar',
+            'reference_id' => $user->id,
+]);
+
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'data' => $user,
+            'avatar_url' => $avatarUrl
+        ], 201);
     }
 }
+

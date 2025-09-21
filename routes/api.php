@@ -15,13 +15,15 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
-Route::middleware('auth:api')->get('/user', function (Request $request) {
-    return $request->user();
+
+Route::group(['prefix' => 'auth'], function () {
+    Route::post('/login', [UserController::class, 'login']);
+    Route::post('/register', [UserController::class, 'register']);
+    Route::post('/passwordRetrieval', [UserController::class, 'passwordRetrieval']);
+    Route::post('/users', [UserController::class, 'addUser']);
+    Route::group(['middleware' => 'auth:api'], function () {
+        Route::post('/logout',[UserController::class,'logout']);
+        Route::post('/users/{id}/profile', [UserController::class, 'updateProfile']);
+
+    });
 });
-
-// Auth routes
-Route::post('auth/login', [UserController::class, 'login']);
-Route::post('auth/register', [UserController::class, 'register']);
- Route::post('/auth/passwordRetrieval', [UserController::class, 'passwordRetrieval']);
-Route::middleware('auth:api')->post('auth/logout', [UserController::class, 'logout']);
-
