@@ -24,4 +24,8 @@ class UserRepositories{
    {
     return  $user->update($data);
    }
+   public function find($id)
+    {
+        return $this->model->find($id);
+    }
 }

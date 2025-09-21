@@ -17,7 +17,6 @@ class UserRequest extends FormRequest
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email',
             'password' => 'required|string|confirmed|min:6',
-            'image' => 'nullable|string',
             'phone'=>'required|string'
         ];
     }
