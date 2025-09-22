@@ -1,0 +1,28 @@
+name: Laravel CD (Main)
+
+on:
+  push:
+    branches: [ "main" ]   # chỉ chạy khi có code vào main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to server via SSH
+        uses: appleboy/ssh-action@v0.1.10
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script: |
+            cd /var/www/laravel_project   # đổi thành path Laravel trên server
+            git pull origin main
+            composer install --no-dev --optimize-autoloader
+            php artisan migrate --force
+            php artisan config:clear
+            php artisan cache:clear
+            php artisan route:clear
+            php artisan view:clear
+            php artisan config:cache
+            php artisan queue:restart
