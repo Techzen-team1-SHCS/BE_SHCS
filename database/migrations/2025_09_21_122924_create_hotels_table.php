@@ -19,7 +19,6 @@ return new class extends Migration
             $table->decimal('price',10,2);
             $table->string('name_nearby_place');
             $table->tinyInteger('hotel_class')->default(0);
-            $table->
             $table->timestamps();
         });
     }
