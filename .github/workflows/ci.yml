@@ -18,7 +18,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'   # đổi theo version PHP dự án bạn
-          extensions: mbstring, bcmath, intl, pdo, mysql
+          extensions: mbstring, bcmath, intl, pdo, sqlite
           coverage: none
 
       - name: Install Composer dependencies
@@ -33,8 +33,9 @@ jobs:
       - name: Set directory permissions
         run: chmod -R 777 storage bootstrap/cache
 
+      # Dùng SQLite in memory cho CI test
       - name: Run migrations (SQLite in memory)
-        run: php artisan migrate --env=testing --force
+        run: php artisan migrate --force --env=testing
 
       - name: Run tests
         run: php artisan test
