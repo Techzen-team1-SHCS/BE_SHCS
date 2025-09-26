@@ -23,7 +23,7 @@ Route::group(['prefix' => 'auth'], function () {
     Route::post('/users', [UserController::class, 'addUser']);
     Route::group(['middleware' => 'auth:api'], function () {
         Route::post('/logout',[UserController::class,'logout']);
-        Route::post('/users/{id}/profile', [UserController::class, 'updateProfile']);
+        Route::put('/update/{id}',[UserController::class,'update']);
 
     });
 });
