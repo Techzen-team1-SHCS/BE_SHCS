@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\LoginRequest;
 use App\Http\Requests\PasswordResetRequest;
+use App\Http\Requests\UpdateRequest;
 use App\Http\Requests\UserRequest;
 use App\Models\Image;
 use App\Models\User;
@@ -46,7 +47,6 @@ class UserController extends Controller
             ], 500);
         }
     }
-
     public function login(LoginRequest $request) ///
     {
         $result = $this->user->login($request->validated());
@@ -65,17 +65,17 @@ class UserController extends Controller
         ]);
     }
    public function logout(Request $request)
-   {
-    $user = $request->user();
+    {
+        $user = $request->user();
 
-    if (!$user) {
-        return response()->json(['message' => 'Token không hợp lệ hoặc chưa đăng nhập'], 401);
-    }
+        if (!$user) {
+            return response()->json(['message' => 'Token không hợp lệ hoặc chưa đăng nhập'], 401);
+        }
 
-    // Thu hồi token hiện tại
-    $user->token()->revoke();
+        // Thu hồi token hiện tại
+        $user->token()->revoke();
 
-    return response()->json(['message' => 'Đăng xuất thành công']);
+        return response()->json(['message' => 'Đăng xuất thành công']);
     }
     public function passwordRetrieval(PasswordResetRequest $request)
     {
@@ -83,57 +83,57 @@ class UserController extends Controller
         return response()->json(['status' => 200, 'message' => 'New password sent to email']);
     }
     public function loginGoogle(Request $request)
-{
-    try {
-        $request->validate([
-            'id_token' => 'required|string',
-        ]);
+    {
+        try {
+            $request->validate([
+                'id_token' => 'required|string',
+            ]);
 
-        $client = new Client();
+            $client = new Client();
 
-        $response = $client->get('https://oauth2.googleapis.com/tokeninfo', [
-            'query' => ['id_token' => $request->id_token],
-        ]);
+            $response = $client->get('https://oauth2.googleapis.com/tokeninfo', [
+                'query' => ['id_token' => $request->id_token],
+            ]);
 
-        $googleUser = json_decode($response->getBody(), true);
+            $googleUser = json_decode($response->getBody(), true);
 
-        // Debug log
+            // Debug log
 
 
-    if (!isset($googleUser['email_verified']) || $googleUser['email_verified'] !== 'true') {
-        return response()->json([
-            'status' => false,
-            'message' => 'Email chưa xác thực'
-        ], 403);
+        if (!isset($googleUser['email_verified']) || $googleUser['email_verified'] !== 'true') {
+            return response()->json([
+                'status' => false,
+                'message' => 'Email chưa xác thực'
+            ], 403);
+        }
+
+        $email = $googleUser['email'];
+        $name = $googleUser['name'] ?? explode('@', $email)[0];
+        $avatar = $googleUser['picture'] ?? null;
+
+        $user = User::firstOrCreate(
+            ['email' => $email],
+            [
+                'name' => $name,
+                'avatar' => $avatar,
+                'password' => bcrypt(Str::random(16))
+            ]
+        );
+
+            $token = $user->createToken('GoogleToken')->accessToken;
+
+                return response()->json([
+                    'status' => true,
+                    'token' => $token,
+                    'user' => $user,
+                ]);
+            } catch (\Exception $e) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Lỗi đăng nhập Google: ' . $e->getMessage()
+                ], 500);
+            }
     }
-
-    $email = $googleUser['email'];
-    $name = $googleUser['name'] ?? explode('@', $email)[0];
-    $avatar = $googleUser['picture'] ?? null;
-
-    $user = User::firstOrCreate(
-        ['email' => $email],
-        [
-            'name' => $name,
-            'avatar' => $avatar,
-            'password' => bcrypt(Str::random(16))
-        ]
-    );
-
-    $token = $user->createToken('GoogleToken')->accessToken;
-
-        return response()->json([
-            'status' => true,
-            'token' => $token,
-            'user' => $user,
-        ]);
-    } catch (\Exception $e) {
-        return response()->json([
-            'status' => false,
-            'message' => 'Lỗi đăng nhập Google: ' . $e->getMessage()
-        ], 500);
-    }
-}
    public function addUser(UserRequest $request)
     {
         $validated = $request->validated();
@@ -172,15 +172,72 @@ class UserController extends Controller
             'url' => $avatarUrl,
             'type' => 'avatar',
             'reference_id' => $user->id,
-]);
+        ]);
 
+                }
+
+                return response()->json([
+                    'status' => 'success',
+                    'data' => $user,
+                    'avatar_url' => $avatarUrl
+                ], 201);
+    }
+    public function update(UpdateRequest $request, $id)
+    {
+        $validated = $request->validated();
+
+        // 1️⃣ Tìm user
+        $user = User::findOrFail($id);
+
+        // 2️⃣ Cập nhật thông tin cơ bản
+        $user->update([
+            'name'     => $validated['name'] ?? $user->name,
+            'email'    => $validated['email'] ?? $user->email,
+            'phone'    => $validated['phone'] ?? $user->phone,
+            'password' => !empty($validated['password']) ? Hash::make($validated['password']) : $user->password,
+        ]);
+
+        $avatarUrl = '';
+
+        // 3️⃣ Upload avatar mới nếu có
+        if ($request->hasFile('avatar') && $request->file('avatar')->isValid()) {
+            $file = $request->file('avatar');
+            $imgData = base64_encode(file_get_contents($file->getRealPath()));
+            $apiKey = env('IMGBB_API_KEY');
+
+            $ch = curl_init();
+            curl_setopt($ch, CURLOPT_URL, 'https://api.imgbb.com/1/upload?key=' . $apiKey);
+            curl_setopt($ch, CURLOPT_POST, 1);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, ['image' => $imgData]);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+            $response = curl_exec($ch);
+            curl_close($ch);
+
+            $data = json_decode($response, true);
+            $avatarUrl = $data['data']['url'] ?? '';
+
+            if ($avatarUrl) {
+                // 🔄 Xoá avatar cũ (nếu có)
+                Image::where('reference_id', $user->id)
+                    ->where('type', 'avatar')
+                    ->delete();
+
+                // ➕ Lưu avatar mới
+                Image::create([
+                    'url'          => $avatarUrl,
+                    'type'         => 'avatar',
+                    'reference_id' => $user->id,
+                ]);
+            }
         }
 
         return response()->json([
-            'status' => 'success',
-            'data' => $user,
-            'avatar_url' => $avatarUrl
-        ], 201);
+            'status'     => 'success',
+            'data'       => $user->fresh(),
+            'avatar_url' => $avatarUrl ?: Image::where('reference_id', $user->id)->where('type', 'avatar')->value('url'),
+        ], 200);
     }
+
 }
 
