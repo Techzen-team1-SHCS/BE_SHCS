@@ -4,7 +4,8 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 
 class Image extends Model
-{
+{   
+    protected $table='images';
     protected $fillable = [
         'url', 'type', 'reference_id'
     ];
@@ -14,7 +15,8 @@ class Image extends Model
     {
         return $this->belongsTo(User::class, 'reference_id');
     }
-
-    // Quan hệ với Hotel (nếu có)
-    
+     public function imageable()
+    {
+        return $this->morphTo(__FUNCTION__, 'type', 'reference_id');
+    }
 }
