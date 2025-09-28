@@ -22,7 +22,7 @@ class User extends Authenticatable
         'password',
         'phone',
         'role',
-
+        
     ];
 
     /**
@@ -43,4 +43,21 @@ class User extends Authenticatable
     protected $casts = [
         'email_verified_at' => 'datetime',
     ];
+    public function behaviors()
+    {
+        return $this->hasMany(UserBehavior::class, 'user_id');
+    }
+
+    // 🔹 Quan hệ với Image (ảnh đại diện hoặc avatar user)
+    public function images()
+    {
+        return $this->hasMany(Image::class, 'reference_id')
+                    ->where('type', 'user');
+    }
+
+    // 🔹 Nếu user có thể tạo khách sạn
+    public function hotels()
+    {
+        return $this->hasMany(Hotel::class, 'user_id');
+    }
 }

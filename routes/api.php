@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\UserBehaviorController;
 use App\Http\Controllers\Api\UserController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -24,6 +25,7 @@ Route::group(['prefix' => 'auth'], function () {
     Route::group(['middleware' => 'auth:api'], function () {
         Route::post('/logout',[UserController::class,'logout']);
         Route::put('/update/{id}',[UserController::class,'update']);
-
+        //UserBehavior
+        Route::post('/user-behaviors/batch', [UserBehaviorController::class, 'batch']);
     });
 });

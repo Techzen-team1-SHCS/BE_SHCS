@@ -265,6 +265,5 @@ class UserController extends Controller
             'avatar_url' => $avatarUrl ?: Image::where('reference_id', $user->id)->where('type', 'avatar')->value('url'),
         ], 200);
     }
-
 }
 
