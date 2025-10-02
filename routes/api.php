@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\HotelController;
 use App\Http\Controllers\Api\UserBehaviorController;
 use App\Http\Controllers\Api\UserController;
 use Illuminate\Http\Request;
@@ -22,10 +23,18 @@ Route::group(['prefix' => 'auth'], function () {
     Route::post('/register', [UserController::class, 'register']);
     Route::post('/passwordRetrieval', [UserController::class, 'passwordRetrieval']);
     Route::post('/users', [UserController::class, 'addUser']);
+    Route::get('/hotels/search', [HotelController::class, 'search']);
     Route::group(['middleware' => 'auth:api'], function () {
         Route::post('/logout',[UserController::class,'logout']);
         Route::put('/update/{id}',[UserController::class,'update']);
         //UserBehavior
         Route::post('/user-behaviors/batch', [UserBehaviorController::class, 'batch']);
+        //Hotel
+        Route::get('/hotel',[HotelController::class,'index']);
+        Route::get('/hotel/{id}',[HotelController::class,'show']);
+        Route::post('/hotel',[HotelController::class,'store']);
+        Route::put('/hotel/{id}',[HotelController::class,'update']);
+        Route::delete('/hotel/{id}',[HotelController::class,'destroy']);
+        //
     });
 });

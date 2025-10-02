@@ -26,7 +26,8 @@ class Hotel extends Model
     // Một khách sạn có nhiều ảnh
     public function images()
     {
-        return $this->morphMany(Image::class, 'reference');
+        return $this->hasMany(Image::class, 'reference_id')
+                    ->where('type', 'hotel');
     }
 
     // Một khách sạn có nhiều hành vi người dùng
@@ -34,4 +35,9 @@ class Hotel extends Model
     {
         return $this->hasMany(UserBehavior::class, 'hotel_id');
     }
+    public function getPriceFormattedAttribute()
+    {
+        return number_format($this->attributes['price'], 0, ',', '.');
+    }
+
 }
