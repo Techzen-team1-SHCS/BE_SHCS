@@ -10,7 +10,7 @@ class Style extends Model
     use HasFactory;
     protected $table='styles';
     protected $fillable=[
-        'name'
+        'style'
     ];
     public function hotels()
     {

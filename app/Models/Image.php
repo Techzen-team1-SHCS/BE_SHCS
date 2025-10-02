@@ -4,7 +4,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 
 class Image extends Model
-{   
+{
     protected $table='images';
     protected $fillable = [
         'url', 'type', 'reference_id'
@@ -15,8 +15,12 @@ class Image extends Model
     {
         return $this->belongsTo(User::class, 'reference_id');
     }
-     public function imageable()
+    // Hotel.php
+    public function hotel()
     {
-        return $this->morphTo(__FUNCTION__, 'type', 'reference_id');
+        return $this->belongsTo(Hotel::class, 'reference_id')
+                    ->where('type', 'hotel');
     }
+
+
 }

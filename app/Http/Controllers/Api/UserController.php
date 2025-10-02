@@ -73,6 +73,53 @@ class UserController extends Controller
                     'avatar_url' => $avatarUrl
                 ], 201);
     }
+    public function index()
+    {
+        try {
+            $users=User::all();
+            if ($users->isEmpty()) {
+                return response()->json([
+                    'status' => 200,
+                    'message' => 'Không có người dùng nào',
+                    'users' => []
+                ], 200);
+        }
+            return response()->json([
+                'status'=>200,
+                'user'=>$users
+            ],200);
+        } catch (\Throwable $th) {
+            return response()->json([
+                'status'=>404,
+                'error'=>'Đã xảy ra lỗi khi lấy dữ liệu người dùng'
+            ],500);
+        }
+
+    }
+    public function show($id)
+    {
+        try {
+            $user = User::findOrFail($id);
+
+            return response()->json([
+                'status' => 200,
+                'user'   => $user
+            ], 200);
+
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            // Trường hợp không tìm thấy user
+            return response()->json([
+                'status' => 404,
+                'error'  => 'Người dùng không tồn tại'
+            ], 404);
+        } catch (\Exception $e) {
+            // Trường hợp lỗi khác
+            return response()->json([
+                'status' => 500,
+                'error'  => 'Đã xảy ra lỗi hệ thống'
+            ], 500);
+        }
+    }
 
     public function login(LoginRequest $request) ///
     {
@@ -264,6 +311,24 @@ class UserController extends Controller
             'data'       => $user->fresh(),
             'avatar_url' => $avatarUrl ?: Image::where('reference_id', $user->id)->where('type', 'avatar')->value('url'),
         ], 200);
+    }
+    public function destroy($id)
+    {
+        try {
+            $user=User::findOrFail($id);
+            $user->delete();
+            return response()->json([
+                'status'=>200,
+                'message'=>'Xóa người dùng thành công'
+            ]);
+
+        } catch (\Throwable $th) {
+            return response()->json([
+                'status'=>500,
+                'error'=>'Không thể xóa người dùng'
+            ],500);
+        }
+
     }
 }
 
