@@ -1,9 +1,10 @@
 <?php
 
 use App\Http\Controllers\Api\HotelController;
+use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\UserBehaviorController;
 use App\Http\Controllers\Api\UserController;
-use App\Http\Controllers\NotificationController;
+
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
