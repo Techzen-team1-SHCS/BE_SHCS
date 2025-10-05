@@ -123,9 +123,6 @@ class HotelController extends Controller
         }
     }
 
-
-
-
     public function store(StoreHotelRequest $request)
     {
         $validated = $request->validated();
@@ -154,7 +151,12 @@ class HotelController extends Controller
             if ($request->hasFile('images')) {
                 foreach ($request->file('images') as $file) {
                     $uploadedFile = Cloudinary::uploadFile($file->getRealPath(), [
-                        'folder' => 'hotels/' . $hotel->id,
+                        'folder' => 'hotels/' . $hotel->id .'webp',
+                        'format'         => 'webp', // 💥 tự động chuyển sang webp
+                        'transformation' => [
+                            'quality' => 'auto',   // tự tối ưu chất lượng
+                            'fetch_format' => 'webp'
+                        ],
                     ]);
 
                     $imageUrl = $uploadedFile->getSecurePath();

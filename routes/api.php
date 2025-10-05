@@ -1,8 +1,10 @@
 <?php
 
 use App\Http\Controllers\Api\HotelController;
+use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\UserBehaviorController;
 use App\Http\Controllers\Api\UserController;
+
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -24,6 +26,7 @@ Route::group(['prefix' => 'auth'], function () {
     Route::post('/passwordRetrieval', [UserController::class, 'passwordRetrieval']);
     Route::post('/users', [UserController::class, 'addUser']);
     Route::get('/hotels/search', [HotelController::class, 'search']);
+    Route::post('subscriber',[NotificationController::class,'store']);
     Route::group(['middleware' => 'auth:api'], function () {
         Route::post('/logout',[UserController::class,'logout']);
         Route::put('/update/{id}',[UserController::class,'update']);

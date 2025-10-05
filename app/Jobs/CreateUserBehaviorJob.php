@@ -14,10 +14,10 @@ class CreateUserBehaviorJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    protected $data;
-    public function __construct(array $data)
+    protected $log;
+    public function __construct(array $log)
     {
-       $this->data=$data;
+       $this->log=$log;
     }
 
     /**
@@ -26,7 +26,13 @@ class CreateUserBehaviorJob implements ShouldQueue
     public function handle(): void
     {
         try {
-            UserBehavior::create($this->data);
+            Log::info("Saving UserBehavior", $this->log);
+            UserBehavior::create([
+            'user_id' => $this->log['user_id'] ?? null,
+            'hotel_id' => $this->log['hotel_id'] ?? null,
+            'action'  => $this->log['action'],
+            'metadata'=> isset($this->log['metadata']) ? json_encode($this->log['metadata']) : null,
+        ]);
         } catch (\Throwable $th) {
             Log::error("Error creating user behavior: ".$th->getMessage());
         }

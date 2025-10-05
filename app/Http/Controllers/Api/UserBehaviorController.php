@@ -29,8 +29,14 @@ class UserBehaviorController extends Controller
             }
 
             $logs = $request->input('logs');
+            $authUserId = auth()->id(); // lấy user_id từ token (nếu có)
 
             foreach ($logs as $log) {
+                // Nếu không có user_id trong log thì gán user từ token
+                if (empty($log['user_id']) && $authUserId) {
+                    $log['user_id'] = $authUserId;
+                }
+
                 CreateUserBehaviorJob::dispatch($log);
             }
 
@@ -46,4 +52,5 @@ class UserBehaviorController extends Controller
             ], 500);
         }
     }
+
 }

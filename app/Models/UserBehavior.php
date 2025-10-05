@@ -12,7 +12,7 @@ class UserBehavior extends Model
     protected $table = 'user_behaviors';
 
     // Dùng timestamps mặc định của Laravel để tracking thời gian
-    public $timestamps = true;
+    public $timestamps = false;
 
     protected $fillable = [
         'user_id',
