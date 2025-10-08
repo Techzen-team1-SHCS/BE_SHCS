@@ -7,6 +7,7 @@ use App\Http\Requests\LoginRequest;
 use App\Http\Requests\PasswordResetRequest;
 use App\Http\Requests\UpdateRequest;
 use App\Http\Requests\UserRequest;
+use App\Mail\RegisterEmail;
 use App\Models\Image;
 use App\Models\User;
 use App\Services\UserServices;
@@ -17,6 +18,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Cloudinary\Uploader; // từ SDK, không phải Facade Laravel
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 
 class UserController extends Controller
 {
@@ -58,20 +60,20 @@ class UserController extends Controller
         }
 
         // 3️⃣ Lưu avatar vào bảng images
-                if ($avatarUrl) {
-                    Image::create([
-                    'url' => $avatarUrl,
-                    'type' => 'avatar',
-                    'reference_id' => $user->id,
+        if ($avatarUrl) {
+            Image::create([
+            'url' => $avatarUrl,
+            'type' => 'avatar',
+            'reference_id' => $user->id,
         ]);
 
-                }
-
-                return response()->json([
-                    'status' => 'success',
-                    'data' => $user,
-                    'avatar_url' => $avatarUrl
-                ], 201);
+        }
+        Mail::to($user->email)->send(new RegisterEmail($user));
+        return response()->json([
+            'status' => 'success',
+            'data' => $user,
+            'avatar_url' => $avatarUrl
+        ], 201);
     }
     public function index()
     {

@@ -38,6 +38,5 @@ Route::group(['prefix' => 'auth'], function () {
         Route::post('/hotel',[HotelController::class,'store']);
         Route::put('/hotel/{id}',[HotelController::class,'update']);
         Route::delete('/hotel/{id}',[HotelController::class,'destroy']);
-        //
     });
 });

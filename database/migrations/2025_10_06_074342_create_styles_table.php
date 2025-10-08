@@ -9,18 +9,20 @@ return new class extends Migration
     /**
      * Run the migrations.
      */
-    public function up()
+    public function up(): void
     {
-        Schema::table('styles', function (Blueprint $table) {
+        Schema::create('styles', function (Blueprint $table) {
+            $table->id();
+            $table->string('style');
             $table->timestamps();
         });
     }
 
-    public function down()
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
     {
-        Schema::table('styles', function (Blueprint $table) {
-            $table->dropTimestamps();
-        });
+        Schema::dropIfExists('styles');
     }
-
 };

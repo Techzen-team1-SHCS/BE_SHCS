@@ -13,7 +13,7 @@ class StyleSeeder extends Seeder
     public function run(): void
     {
         $styles = [
-            'Cổ điển',
+           'Cổ điển',
            'Hiện đại',
            'Yên tĩnh',
            'Sôi động',
