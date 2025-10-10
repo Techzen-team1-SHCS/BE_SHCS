@@ -3,6 +3,8 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+
+use App\Notifications\Customresetpassword;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -52,12 +54,16 @@ class User extends Authenticatable
     public function images()
     {
         return $this->hasMany(Image::class, 'reference_id')
-                    ->where('type', 'user');
+                    ->where('type', 'avatar');
     }
 
     // 🔹 Nếu user có thể tạo khách sạn
     public function hotels()
     {
         return $this->hasMany(Hotel::class, 'user_id');
+    }
+    public function sendPasswordResetNotification($token)
+    {
+        $this->notify(new Customresetpassword($token));
     }
 }

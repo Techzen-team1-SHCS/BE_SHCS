@@ -11,6 +11,8 @@ use App\Models\Style;
 use CloudinaryLabs\CloudinaryLaravel\Facades\Cloudinary;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Password;
 
 class HotelController extends Controller
 {
@@ -299,5 +301,7 @@ class HotelController extends Controller
             ], 500);
         }
     }
+
+   
 
 }
