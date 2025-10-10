@@ -27,9 +27,13 @@ Route::group(['prefix' => 'auth'], function () {
     Route::post('/users', [UserController::class, 'addUser']);
     Route::get('/hotels/search', [HotelController::class, 'search']);
     Route::post('subscriber',[NotificationController::class,'store']);
+    Route::post('/forgot-password', [UserController::class, 'sendResetLink']);
+    Route::post('/reset-password', [UserController::class, 'reset']);
+    Route::get('/user/{id}',[UserController::class,'show']);
     Route::group(['middleware' => 'auth:api'], function () {
         Route::post('/logout',[UserController::class,'logout']);
-        Route::put('/update/{id}',[UserController::class,'update']);
+        Route::post('/update/{id}',[UserController::class,'update']);
+
         //UserBehavior
         Route::post('/user-behaviors/batch', [UserBehaviorController::class, 'batch']);
         //Hotel

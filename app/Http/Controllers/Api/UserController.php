@@ -19,6 +19,7 @@ use Illuminate\Support\Str;
 use Cloudinary\Uploader; // từ SDK, không phải Facade Laravel
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Password;
 
 class UserController extends Controller
 {
@@ -99,29 +100,46 @@ class UserController extends Controller
 
     }
     public function show($id)
-    {
-        try {
-            $user = User::findOrFail($id);
+{
+    try {
+        // 🔍 1️⃣ Tìm user theo ID
+        $user = User::findOrFail($id);
 
-            return response()->json([
-                'status' => 200,
-                'user'   => $user
-            ], 200);
+        // 🔗 2️⃣ Lấy avatar từ bảng images
+        $avatarUrl = Image::where('reference_id', $user->id)
+            ->where('type', 'avatar')
+            ->value('url');
 
-        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
-            // Trường hợp không tìm thấy user
-            return response()->json([
-                'status' => 404,
-                'error'  => 'Người dùng không tồn tại'
-            ], 404);
-        } catch (\Exception $e) {
-            // Trường hợp lỗi khác
-            return response()->json([
-                'status' => 500,
-                'error'  => 'Đã xảy ra lỗi hệ thống'
-            ], 500);
-        }
+        // ✅ 3️⃣ Trả về JSON
+        return response()->json([
+            'status' => 200,
+            'user' => [
+                'id'          => $user->id,
+                'name'        => $user->name,
+                'email'       => $user->email,
+                'phone'       => $user->phone,
+                'role'        => $user->role,
+                'avatar_url'  => $avatarUrl,
+                'created_at'  => $user->created_at,
+                'updated_at'  => $user->updated_at,
+            ]
+        ], 200);
+
+    } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+        return response()->json([
+            'status' => 404,
+            'error'  => 'Người dùng không tồn tại'
+        ], 404);
+
+    } catch (\Exception $e) {
+        return response()->json([
+            'status' => 500,
+            'error'  => 'Đã xảy ra lỗi hệ thống',
+            'message' => $e->getMessage() // ⚠️ để debug tạm (bạn có thể xóa khi deploy)
+        ], 500);
     }
+}
+
 
     public function login(LoginRequest $request) ///
     {
@@ -258,62 +276,94 @@ class UserController extends Controller
                     'avatar_url' => $avatarUrl
                 ], 201);
     }
-    public function update(UpdateRequest $request, $id)
-    {
-        $validated = $request->validated();
+    public function update(Request $request, $id)
+{
+    // 🟢 1️⃣ Validate dữ liệu
+    $validated = $request->validate([
+        'name'     => 'nullable|string|max:255',
+        'email'    => 'nullable|email|max:255',
+        'phone'    => 'nullable|string|max:20',
+        'password' => 'nullable|string|min:6',
+        'avatar'   => 'nullable|image|max:5120', // giới hạn 5MB
+    ]);
 
-        // 1️⃣ Tìm user
-        $user = User::findOrFail($id);
+    // 🟢 2️⃣ Tìm user
+    $user = User::findOrFail($id);
 
-        // 2️⃣ Cập nhật thông tin cơ bản
-        $user->update([
-            'name'     => $validated['name'] ?? $user->name,
-            'email'    => $validated['email'] ?? $user->email,
-            'phone'    => $validated['phone'] ?? $user->phone,
-            'password' => !empty($validated['password']) ? Hash::make($validated['password']) : $user->password,
-        ]);
+    // 🟢 3️⃣ Cập nhật thông tin cơ bản
+    $user->update([
+        'name'     => $validated['name'] ?? $user->name,
+        'email'    => $validated['email'] ?? $user->email,
+        'phone'    => $validated['phone'] ?? $user->phone,
+        'password' => !empty($validated['password']) ? Hash::make($validated['password']) : $user->password,
+    ]);
 
-        $avatarUrl = '';
-
-        // 3️⃣ Upload avatar mới nếu có
-        if ($request->hasFile('avatar') && $request->file('avatar')->isValid()) {
+    // 🟢 4️⃣ Upload avatar nếu có
+    $avatarUrl = '';
+    if ($request->hasFile('avatar') && $request->file('avatar')->isValid()) {
+        try {
             $file = $request->file('avatar');
             $imgData = base64_encode(file_get_contents($file->getRealPath()));
             $apiKey = env('IMGBB_API_KEY');
 
             $ch = curl_init();
-            curl_setopt($ch, CURLOPT_URL, 'https://api.imgbb.com/1/upload?key=' . $apiKey);
-            curl_setopt($ch, CURLOPT_POST, 1);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, ['image' => $imgData]);
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt_array($ch, [
+                CURLOPT_URL => 'https://api.imgbb.com/1/upload?key=' . $apiKey,
+                CURLOPT_POST => 1,
+                CURLOPT_POSTFIELDS => ['image' => $imgData],
+                CURLOPT_RETURNTRANSFER => true,
+            ]);
 
             $response = curl_exec($ch);
+
+            if (curl_errno($ch)) {
+                \Log::error('❌ ImgBB cURL error: ' . curl_error($ch));
+                return response()->json(['error' => 'Lỗi khi upload ảnh lên ImgBB'], 500);
+            }
+
             curl_close($ch);
 
             $data = json_decode($response, true);
             $avatarUrl = $data['data']['url'] ?? '';
 
-            if ($avatarUrl) {
-                // 🔄 Xoá avatar cũ (nếu có)
-                Image::where('reference_id', $user->id)
-                    ->where('type', 'avatar')
-                    ->delete();
-
-                // ➕ Lưu avatar mới
-                Image::create([
-                    'url'          => $avatarUrl,
-                    'type'         => 'avatar',
-                    'reference_id' => $user->id,
-                ]);
+            if (!$avatarUrl) {
+                \Log::error('❌ ImgBB upload failed. Response: ' . $response);
+                return response()->json(['error' => 'Upload ảnh thất bại. Vui lòng thử lại!'], 500);
             }
-        }
 
-        return response()->json([
-            'status'     => 'success',
-            'data'       => $user->fresh(),
-            'avatar_url' => $avatarUrl ?: Image::where('reference_id', $user->id)->where('type', 'avatar')->value('url'),
-        ], 200);
+            // 🔄 Xóa avatar cũ (nếu có)
+            Image::where('reference_id', $user->id)
+                ->where('type', 'avatar')
+                ->delete();
+
+            // ➕ Lưu avatar mới
+            Image::create([
+                'url'          => $avatarUrl,
+                'type'         => 'avatar',
+                'reference_id' => $user->id,
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('❌ Lỗi upload avatar: ' . $e->getMessage());
+            return response()->json(['error' => 'Đã xảy ra lỗi khi cập nhật avatar.'], 500);
+        }
     }
+
+    // 🟢 5️⃣ Lấy URL avatar hiện tại (mới nhất)
+    $currentAvatar = $avatarUrl ?: Image::where('reference_id', $user->id)
+        ->where('type', 'avatar')
+        ->value('url');
+
+    // 🟢 6️⃣ Trả về kết quả JSON
+    return response()->json([
+        'status'      => 'success',
+        'message'     => 'Cập nhật thông tin thành công',
+        'data'        => $user->fresh(),
+        'avatar_url'  => $currentAvatar,
+    ], 200);
+}
+
+
     public function destroy($id)
     {
         try {
@@ -331,6 +381,50 @@ class UserController extends Controller
             ],500);
         }
 
+    }
+     public function sendResetLink(Request $request)
+    {
+
+        $request->validate(['email' => 'required|email']);
+
+        $user = User::where('email', $request->email)->first();
+
+        if (!$user) {
+            return response()->json([
+                'status' => 404,
+                'error' => 'Không tìm thấy người dùng với email này.'
+            ]);
+        }
+
+        // 🟢 Tạo token thủ công
+        $token = Password::createToken($user);
+
+        // 🟢 Gửi Notification chứa token thật (chưa hash)
+        $user->notify(new \App\Notifications\CustomResetPassword($token));
+
+        return response()->json([
+            'status' => 200,
+            'message' => 'Link khôi phục mật khẩu đã được gửi đến email của bạn!'
+        ]);
+    }
+    public function reset(Request $request)
+    {
+        $request->validate([
+            'token' => 'required',
+            'email' => 'required|email',
+            'password' => 'required|min:6|confirmed',
+        ]);
+
+        $status = Password::reset(
+            $request->only('email', 'password', 'password_confirmation', 'token'),
+            function ($user, $password) {
+                $user->forceFill(['password' => Hash::make($password)])->save();
+            }
+        );
+
+        return $status === Password::PASSWORD_RESET
+            ? response()->json(['status' => 200, 'message' => 'Mật khẩu đã được đặt lại thành công!'])
+            : response()->json(['status' => 400, 'error' => __($status)]);
     }
 }
 
