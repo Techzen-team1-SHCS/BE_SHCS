@@ -210,6 +210,8 @@ return [
 
     'aliases' => Facade::defaultAliases()->merge([
         'Cloudinary' => CloudinaryLabs\CloudinaryLaravel\Facades\Cloudinary::class,
+        'Image' => 'Intervention\\Image\\Facades\\Image',
+
         // 'ExampleClass' => App\Example\ExampleClass::class,
     ])->toArray(),
 
