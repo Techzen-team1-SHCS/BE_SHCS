@@ -17,7 +17,10 @@ class UserRequest extends FormRequest
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email',
             'password' => 'required|string|confirmed|min:6',
-            'phone'=>'required|string'
+            'phone' => [
+                'required',
+                'regex:/^[0-9]{9,11}$/'
+            ]
         ];
     }
 
@@ -31,7 +34,8 @@ class UserRequest extends FormRequest
             'password.required' => 'Mật khẩu không được để trống',
             'password.confirmed' => 'Mật khẩu xác nhận không khớp',
             'password.min' => 'Mật khẩu phải ít nhất 6 ký tự',
-            'phone.required'=>'Số điện thoại không được để trống'
+            'phone.required'=>'Số điện thoại không được để trống',
+            'phone.regex' => 'Số điện thoại phải là số và có từ 9 đến 11 chữ số',
         ];
     }
 

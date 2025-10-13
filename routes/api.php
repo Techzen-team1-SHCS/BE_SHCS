@@ -30,6 +30,10 @@ Route::group(['prefix' => 'auth'], function () {
     Route::post('/forgot-password', [UserController::class, 'sendResetLink']);
     Route::post('/reset-password', [UserController::class, 'reset']);
     Route::get('/user/{id}',[UserController::class,'show']);
+    Route::post('/import-hotels-excel', [HotelController::class, 'importHotelStyles']);
+    Route::post('/hotels/{hotel}/images', [HotelController::class, 'uploadImages']);
+    Route::get('/tophotels',[HotelController::class,'topHotels']);
+    Route::get('/hotel',[HotelController::class,'index']);
     Route::group(['middleware' => 'auth:api'], function () {
         Route::post('/logout',[UserController::class,'logout']);
         Route::post('/update/{id}',[UserController::class,'update']);
@@ -37,7 +41,7 @@ Route::group(['prefix' => 'auth'], function () {
         //UserBehavior
         Route::post('/user-behaviors/batch', [UserBehaviorController::class, 'batch']);
         //Hotel
-        Route::get('/hotel',[HotelController::class,'index']);
+
         Route::get('/hotel/{id}',[HotelController::class,'show']);
         Route::post('/hotel',[HotelController::class,'store']);
         Route::put('/hotel/{id}',[HotelController::class,'update']);

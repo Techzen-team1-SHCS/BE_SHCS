@@ -148,7 +148,7 @@ class UserController extends Controller
         if (!$result) {
             return response()->json([
                 'status' => 401,
-                'error'  => 'Invalid credentials'
+                'error'  => 'Vui lòng kiểm tra lại mật khẩu'
             ], 401);
         }
 
@@ -317,7 +317,7 @@ class UserController extends Controller
             $response = curl_exec($ch);
 
             if (curl_errno($ch)) {
-                \Log::error('❌ ImgBB cURL error: ' . curl_error($ch));
+                Log::error('❌ ImgBB cURL error: ' . curl_error($ch));
                 return response()->json(['error' => 'Lỗi khi upload ảnh lên ImgBB'], 500);
             }
 

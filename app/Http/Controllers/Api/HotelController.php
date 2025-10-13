@@ -10,9 +10,13 @@ use App\Models\Image;
 use App\Models\Style;
 use CloudinaryLabs\CloudinaryLaravel\Facades\Cloudinary;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Password;
+use Maatwebsite\Excel\Facades\Excel;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class HotelController extends Controller
 {
@@ -49,6 +53,23 @@ class HotelController extends Controller
                 'error'=>$th->getMessage($th)
             ]);
         }
+    }
+
+    public function topHotels(){
+        $hotels=Cache::remember('top_10_hotels', 60, function () {
+           return Hotel::with(['styles', 'images'])->take(10)->get();
+        });
+        if(!$hotels){
+            return response()->json([
+                'status'=>400,
+                'message'=>'Lỗi ko tìm thấy khách sạn'
+            ]);
+        }
+        return response()->json([
+            'status'=>200,
+            'message'=>'Lấy danh sách top 10 khách sạn thành công',
+            'data'=>$hotels
+        ],200);
     }
 
     public function search(Request $request)
@@ -302,6 +323,65 @@ class HotelController extends Controller
         }
     }
 
-   
+      public function uploadImages(Request $request, $hotelId)
+    {
+        $hotel = Hotel::find($hotelId);
+        if (!$hotel) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Hotel not found'
+            ], 404);
+        }
+
+        if (!$request->hasFile('images')) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'No images uploaded'
+            ], 400);
+        }
+
+        $uploadedImages = [];
+
+        DB::beginTransaction();
+        try {
+            foreach ($request->file('images') as $file) {
+                $uploadedFile = Cloudinary::uploadFile($file->getRealPath(), [
+                    'folder' => 'hotels/' . $hotel->id,
+                    'format' => 'webp',
+                    'transformation' => [
+                        'quality' => 'auto',
+                        'fetch_format' => 'webp'
+                    ],
+                ]);
+
+                $imageUrl = $uploadedFile->getSecurePath();
+
+                Image::create([
+                    'url' => $imageUrl,
+                    'reference_id' => $hotel->id,
+                    'type' => 'hotel'
+                ]);
+
+                $uploadedImages[] = $imageUrl;
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'status' => 'success',
+                'hotel_id' => $hotel->id,
+                'images' => $uploadedImages
+            ], 201);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'status' => 'error',
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+
 
 }
