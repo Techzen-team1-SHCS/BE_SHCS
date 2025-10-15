@@ -75,68 +75,66 @@ class HotelController extends Controller
     public function search(Request $request)
     {
         try {
-            $query = Hotel::with(['styles', 'images']);
+            $query = Hotel::with(['rooms', 'styles', 'images']);
 
-            // Keyword search
-            if ($request->filled('keyword')) {
-                $keyword = $request->keyword;
-                $columns = ['name', 'province', 'description', 'name_nearby_place'];
+        // 1️⃣ Keyword filter (tìm tự do)
+        if ($request->filled('searchTerm')) {
+            $keyword = $request->searchTerm;
+            $query->where(function ($q) use ($keyword) {
+                $q->where('name', 'like', "%$keyword%")
+                  ->orWhere('description', 'like', "%$keyword%")
+                  ->orWhere('name_nearby_place', 'like', "%$keyword%");
+            });
+        }
 
-                $query->where(function($q) use ($columns, $keyword) {
-                    foreach ($columns as $col) {
-                        $q->orWhere($col, 'like', "%{$keyword}%");
-                    }
-                    $q->orWhereHas('styles', function($sq) use ($keyword) {
-                        $sq->where('style', 'like', "%{$keyword}%");
+        // 2️⃣ Destination / Province filter (từ FE gọi là destination)
+        if ($request->filled('destination')) {
+            $query->where('province', 'like', "%{$request->destination}%");
+        }
+
+        // 3️⃣ Room Type filter
+        if ($request->filled('roomType')) {
+            $query->whereHas('styles', function ($q) use ($request) {
+                $q->where('style', 'like', "%{$request->roomType}%");
+            });
+        }
+
+        // 4️⃣ Guest & Date filter
+        if ($request->filled('checkIn') && $request->filled('checkOut')) {
+            $query->whereHas('rooms', function ($q) use ($request) {
+                if ($request->filled('checkIn') && $request->filled('checkOut')) {
+                    $q->where(function ($r) use ($request) {
+                        $r->whereNull('available_from')
+                          ->orWhere('available_from', '<=', $request->checkIn);
+                    })->where(function ($r) use ($request) {
+                        $r->whereNull('available_to')
+                          ->orWhere('available_to', '>=', $request->checkOut);
                     });
-                });
-            }
-
-            // Province filter
-            if ($request->filled('province')) {
-                $query->where('province', $request->province);
-            }
-            // Exact price filter
-            if ($request->filled('price')) {
-                $query->where('price', $request->price);
-            }
-
-            // Price filter
-            if ($request->filled('price_min')) {
-                $query->where('price', '>=', $request->price_min);
-            }
-            if ($request->filled('price_max')) {
-                $query->where('price', '<=', $request->price_max);
-            }
-
-            // Styles filter (array id)
-            if ($request->filled('styles')) {
-                $query->whereHas('styles', function($q) use ($request) {
-                    $q->whereIn('styles.id', (array) $request->styles);
-                });
-            }
-
-            // Sorting
-            if ($request->filled('sort')) {
-                switch ($request->sort) {
-                    case 'price_asc':   $query->orderBy('price', 'asc'); break;
-                    case 'price_desc':  $query->orderBy('price', 'desc'); break;
-                    case 'newest':      $query->orderBy('created_at', 'desc'); break;
-                    case 'rating_desc': $query->orderBy('hotel_class', 'desc'); break;
                 }
-            }
+            });
+        }
 
-            // Pagination
-            $perPage = $request->get('limit', 10);
-            $hotels = $query->paginate($perPage);
-            $hotels->getCollection()->transform(function ($hotel) {
+        // 5️⃣ Price filter
+
+
+        // 6️⃣ Sort filter
+        $sort = $request->get('sort', 'price_asc');
+
+
+        // 7️⃣ Pagination + Format
+        $perPage = $request->get('per_page', 10);
+        $hotels = $query->paginate($perPage);
+
+        $hotels->getCollection()->transform(function ($hotel) {
             $hotel->price_formatted = number_format($hotel->price, 0, ',', '.');
             return $hotel;
-            });
+        });
+
             return response()->json([
-                'status'  => 200,
-                'content' => $hotels
-            ], 200);
+                'status' => 200,
+                'data' => $hotels,
+                'total_results' => $hotels->total(),
+            ]);
 
         } catch (\Throwable $th) {
             return response()->json([
