@@ -9,6 +9,9 @@ class Room extends Model
 {
     use HasFactory;
     protected $table='rooms';
+    protected $casts = [
+    'amenities' => 'array', // tự cast JSON ↔ array
+    ];
     protected $fillable=[
         'hotel_id',
         'room_type',         // loại phòng: Deluxe, Standard
