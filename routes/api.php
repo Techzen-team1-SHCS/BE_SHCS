@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\HotelController;
 use App\Http\Controllers\Api\NotificationController;
+use App\Http\Controllers\Api\RoomController;
 use App\Http\Controllers\Api\UserBehaviorController;
 use App\Http\Controllers\Api\UserController;
 
@@ -21,6 +22,7 @@ use Illuminate\Support\Facades\Route;
 
 
 Route::group(['prefix' => 'auth'], function () {
+    //user
     Route::post('/login', [UserController::class, 'login']);
     Route::post('/register', [UserController::class, 'register']);
     Route::post('/passwordRetrieval', [UserController::class, 'passwordRetrieval']);
@@ -30,10 +32,14 @@ Route::group(['prefix' => 'auth'], function () {
     Route::post('/forgot-password', [UserController::class, 'sendResetLink']);
     Route::post('/reset-password', [UserController::class, 'reset']);
     Route::get('/user/{id}',[UserController::class,'show']);
+    //Hotel
     Route::post('/import-hotels-excel', [HotelController::class, 'importHotelStyles']);
     Route::post('/hotels/{hotel}/images', [HotelController::class, 'uploadImages']);
     Route::get('/tophotels',[HotelController::class,'topHotels']);
     Route::get('/hotel',[HotelController::class,'index']);
+    //Room
+    Route::get('/rooms',[RoomController::class,'index']);
+    Route::get('/room',[RoomController::class,'show']);
     Route::group(['middleware' => 'auth:api'], function () {
         Route::post('/logout',[UserController::class,'logout']);
         Route::post('/update/{id}',[UserController::class,'update']);
@@ -41,10 +47,13 @@ Route::group(['prefix' => 'auth'], function () {
         //UserBehavior
         Route::post('/user-behaviors/batch', [UserBehaviorController::class, 'batch']);
         //Hotel
-
         Route::get('/hotel/{id}',[HotelController::class,'show']);
         Route::post('/hotel',[HotelController::class,'store']);
         Route::put('/hotel/{id}',[HotelController::class,'update']);
         Route::delete('/hotel/{id}',[HotelController::class,'destroy']);
+        //Room
+        Route::post('/room',[RoomController::class,'store']);
+        Route::put('/room/{id}',[RoomController::class,'update']);
+        Route::delete('/room/{id}',[RoomController::class,'destroy']);
     });
 });

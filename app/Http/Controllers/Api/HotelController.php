@@ -36,7 +36,7 @@ class HotelController extends Controller
     }
     public function show($id){
         try {
-            $hotel = Hotel::with(['styles', 'images'])->findOrFail($id);
+            $hotel = Hotel::with(['styles', 'images','rooms'])->findOrFail($id);
             if(!$hotel){
                 return response()->json([
                     'status'=>404,
