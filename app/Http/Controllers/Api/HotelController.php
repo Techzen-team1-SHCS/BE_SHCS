@@ -55,22 +55,33 @@ class HotelController extends Controller
         }
     }
 
-    public function topHotels(){
-        $hotels=Cache::remember('top_10_hotels', 60, function () {
-           return Hotel::with(['styles', 'images'])->take(10)->get();
+    public function topHotels() {
+    // Lấy cache hoặc truy vấn mới 10 khách sạn
+        $hotels = Cache::remember('top_10_hotels', 60, function () {
+            return Hotel::with(['styles', 'images'])->take(10)->get();
         });
-        if(!$hotels){
+
+        // Format giá trực tiếp trên Collection
+        $hotels->transform(function ($hotel) {
+            $hotel->price_formatted = number_format($hotel->price, 0, ',', '.');
+            return $hotel;
+        });
+
+        // Kiểm tra rỗng
+        if ($hotels->isEmpty()) {
             return response()->json([
-                'status'=>400,
-                'message'=>'Lỗi ko tìm thấy khách sạn'
+                'status' => 400,
+                'message' => 'Lỗi không tìm thấy khách sạn'
             ]);
         }
+
+        // Trả về JSON
         return response()->json([
-            'status'=>200,
-            'message'=>'Lấy danh sách top 10 khách sạn thành công',
-            'data'=>$hotels
-        ],200);
-    }
+            'status' => 200,
+            'message' => 'Lấy danh sách top 10 khách sạn thành công',
+            'data' => $hotels
+        ], 200);
+}
 
     public function search(Request $request)
     {
@@ -115,7 +126,39 @@ class HotelController extends Controller
         }
 
         // 5️⃣ Price filter
+       if ($request->filled('selectedFilters')) {
+            $selectedFilters = is_array($request->selectedFilters)
+                ? $request->selectedFilters
+                : explode(',', $request->selectedFilters);
 
+            $query->where(function ($q) use ($selectedFilters) {
+                foreach ($selectedFilters as $filter) {
+                    if (preg_match('/(\d+) sao/', $filter, $matches)) {
+                        $q->where('hotel_class', '>=', (int)$matches[1] * 10);
+                    } elseif (preg_match('/Tuyệt hảo|Rất tốt|Tốt|Dễ chịu/', $filter)) {
+                        $ratingMap = [
+                            'Tuyệt hảo' => 90,
+                            'Rất tốt'   => 80,
+                            'Tốt'       => 70,
+                            'Dễ chịu'   => 60,
+                        ];
+                        foreach ($ratingMap as $key => $value) {
+                            if (str_contains($filter, $key)) {
+                                $q->where('hotel_class', '>=', $value);
+                            }
+                        }
+                    } else {
+                        // Đây là filter amenities hoặc text
+                        $q->where(function ($inner) use ($filter) {
+                            $inner->orWhereJsonContains('amenities', $filter)
+                                ->orWhere('amenities', 'like', "%$filter%")
+                                ->orWhere('name', 'like', "%$filter%")
+                                ->orWhere('province', 'like', "%$filter%");
+                        });
+                    }
+                }
+            });
+        }
 
         // 6️⃣ Sort filter
         $sort = $request->get('sort', 'price_asc');
