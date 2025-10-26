@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\HotelController;
 use App\Http\Controllers\Api\NotificationController;
+use App\Http\Controllers\Api\RecommendationController;
 use App\Http\Controllers\Api\RoomController;
 use App\Http\Controllers\Api\UserBehaviorController;
 use App\Http\Controllers\Api\UserController;
@@ -33,6 +34,7 @@ Route::group(['prefix' => 'auth'], function () {
     Route::post('/reset-password', [UserController::class, 'reset']);
     Route::get('/user/{id}',[UserController::class,'show']);
     //Hotel
+    Route::get('/hotel/{id}',[HotelController::class,'show']);
     Route::post('/import-hotels-excel', [HotelController::class, 'importHotelStyles']);
     Route::post('/hotels/{hotel}/images', [HotelController::class, 'uploadImages']);
     Route::get('/tophotels',[HotelController::class,'topHotels']);
@@ -47,7 +49,7 @@ Route::group(['prefix' => 'auth'], function () {
         //UserBehavior
         Route::post('/user-behaviors/batch', [UserBehaviorController::class, 'batch']);
         //Hotel
-        Route::get('/hotel/{id}',[HotelController::class,'show']);
+
         Route::post('/hotel',[HotelController::class,'store']);
         Route::put('/hotel/{id}',[HotelController::class,'update']);
         Route::delete('/hotel/{id}',[HotelController::class,'destroy']);
@@ -55,5 +57,7 @@ Route::group(['prefix' => 'auth'], function () {
         Route::post('/room',[RoomController::class,'store']);
         Route::put('/room/{id}',[RoomController::class,'update']);
         Route::delete('/room/{id}',[RoomController::class,'destroy']);
+        // Recommendation
+        Route::get('/recommendations/{user_id}', [RecommendationController::class, 'getRecommendations']);
     });
 });

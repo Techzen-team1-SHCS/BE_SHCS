@@ -45,7 +45,7 @@ class HotelController extends Controller
             }
             return response()->json([
                 'status'=>200,
-                'content'=>$hotel
+                'data'=>$hotel
             ],200);
         } catch (\Throwable $th) {
             return response()->json([
@@ -57,10 +57,7 @@ class HotelController extends Controller
 
     public function topHotels() {
     // Lấy cache hoặc truy vấn mới 10 khách sạn
-        $hotels = Cache::remember('top_10_hotels', 60, function () {
-            return Hotel::with(['styles', 'images'])->take(10)->get();
-        });
-
+        $hotels = Hotel::with(['styles', 'images'])->take(8)->get();
         // Format giá trực tiếp trên Collection
         $hotels->transform(function ($hotel) {
             $hotel->price_formatted = number_format($hotel->price, 0, ',', '.');
@@ -137,10 +134,10 @@ class HotelController extends Controller
                         $q->where('hotel_class', '>=', (int)$matches[1] * 10);
                     } elseif (preg_match('/Tuyệt hảo|Rất tốt|Tốt|Dễ chịu/', $filter)) {
                         $ratingMap = [
-                            'Tuyệt hảo' => 90,
-                            'Rất tốt'   => 80,
-                            'Tốt'       => 70,
-                            'Dễ chịu'   => 60,
+                            'Tuyệt hảo' => 50,
+                            'Rất tốt'   => 40,
+                            'Tốt'       => 30,
+                            'Dễ chịu'   => 20,
                         ];
                         foreach ($ratingMap as $key => $value) {
                             if (str_contains($filter, $key)) {

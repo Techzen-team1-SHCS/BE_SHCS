@@ -10,7 +10,7 @@ class Hotel extends Model
     use HasFactory;
     protected $table='hotels';
     protected $fillable=[
-        'name','province','description','price','name_nearby_place','hotel_class'
+        'name','province','description','price','name_nearby_place','hotel_class','text'
     ];
     public function rooms()
     {

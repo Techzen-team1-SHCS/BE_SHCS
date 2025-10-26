@@ -52,5 +52,6 @@ class UserBehaviorController extends Controller
             ], 500);
         }
     }
+    
 
 }
