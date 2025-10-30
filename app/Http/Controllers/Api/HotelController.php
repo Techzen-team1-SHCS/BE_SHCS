@@ -34,6 +34,58 @@ class HotelController extends Controller
             ],500);
         }
     }
+    public function sameProvince($id,Request $request)
+    {
+        try {
+            $hotel=Hotel::with(['styles','images','rooms'])->findOrFail($id);
+            $limit=$request->get('limit',2);
+             $sameProvinceHotels = Hotel::with(['styles', 'images', 'rooms']) // Thêm relationships
+            ->where('province', $hotel->province)
+            ->where('id', '!=', $id)
+            ->limit($limit)
+            ->get();
+            return response()->json([
+                'success'=>true,
+                'data'=>$sameProvinceHotels
+            ]);
+        } catch (\Throwable $th) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Lỗi server: ' . $th->getMessage()
+            ], 500);
+        }
+    }
+    public function sameStyle($id,Request $request)
+    {
+        try {
+            $limit=$request->get('limit',3);
+            $currentHotel=Hotel::findOrFail($id);
+            $currentStyleIds = $currentHotel->styles->pluck('id')->toArray();
+            if (empty($currentStyleIds)) {
+                return response()->json([
+                    'success' => true,
+                    'data' => [],
+                    'message' => 'Khách sạn không có room styles'
+                ]);
+            }
+            $sameStyleHotels = Hotel::with(['styles', 'images','rooms']) // Bỏ constraint
+            ->whereHas('styles', function($query) use ($currentStyleIds) {
+                $query->whereIn('styles.id', $currentStyleIds);
+            })
+            ->where('id', '!=', $id)
+            ->limit($limit)
+            ->get();
+            return response()->json([
+            'success' => true,
+            'data' => $sameStyleHotels,
+        ]);
+        } catch (\Throwable $th) {
+            return response()->json([
+            'success' => false,
+            'message' => 'Lỗi server: ' . $th->getMessage()
+        ], 500);
+        }
+    }
     public function show($id){
         try {
             $hotel = Hotel::with(['styles', 'images','rooms'])->findOrFail($id);
@@ -57,7 +109,10 @@ class HotelController extends Controller
 
     public function topHotels() {
     // Lấy cache hoặc truy vấn mới 10 khách sạn
-        $hotels = Hotel::with(['styles', 'images'])->take(8)->get();
+        $hotels = Hotel::with(['styles', 'images'])
+        ->orderBy('hotel_class', 'desc') // sắp xếp từ cao xuống thấp
+        ->take(5)
+        ->get();
         // Format giá trực tiếp trên Collection
         $hotels->transform(function ($hotel) {
             $hotel->price_formatted = number_format($hotel->price, 0, ',', '.');

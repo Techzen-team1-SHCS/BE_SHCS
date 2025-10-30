@@ -25,6 +25,7 @@ use Illuminate\Support\Facades\Route;
 Route::group(['prefix' => 'auth'], function () {
     //user
     Route::post('/login', [UserController::class, 'login']);
+    Route::post('/loginGoogle',[UserController::class,'loginGoogle']);
     Route::post('/register', [UserController::class, 'register']);
     Route::post('/passwordRetrieval', [UserController::class, 'passwordRetrieval']);
     Route::post('/users', [UserController::class, 'addUser']);
@@ -34,6 +35,8 @@ Route::group(['prefix' => 'auth'], function () {
     Route::post('/reset-password', [UserController::class, 'reset']);
     Route::get('/user/{id}',[UserController::class,'show']);
     //Hotel
+    Route::get('hotels/{id}/same-style', [HotelController::class, 'sameStyle']);
+    Route::get('hotels/{id}/same-province', [HotelController::class, 'sameProvince']);
     Route::get('/hotel/{id}',[HotelController::class,'show']);
     Route::post('/import-hotels-excel', [HotelController::class, 'importHotelStyles']);
     Route::post('/hotels/{hotel}/images', [HotelController::class, 'uploadImages']);

@@ -18,7 +18,6 @@ class Booking extends Model
         'check_out',
         'total_price',
         'status',
-        'payment_status',
         'quantity'
     ];
 
@@ -31,6 +30,10 @@ class Booking extends Model
     public function user()
     {
         return $this->belongsTo(User::class, 'user_id');
+    }
+     public function payments()
+    {
+        return $this->hasMany(Payment::class, 'booking_id', 'id');
     }
 
     // 🔹 Quan hệ: 1 booking thuộc về 1 room
