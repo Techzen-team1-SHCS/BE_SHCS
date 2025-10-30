@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\BookingController;
 use App\Http\Controllers\Api\HotelController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\RecommendationController;
@@ -62,5 +63,11 @@ Route::group(['prefix' => 'auth'], function () {
         Route::delete('/room/{id}',[RoomController::class,'destroy']);
         // Recommendation
         Route::get('/recommendations/{user_id}', [RecommendationController::class, 'getRecommendations']);
+        //Booking
+        Route::get('/booking',[BookingController::class,'index']);
+        Route::get('/booking/{id}',[BookingController::class,'show']);
+        Route::post('/booking',[BookingController::class,'store']);
+        Route::put('/booking/{id}',[BookingController::class,'update']);
+        Route::delete('/booking/{id}',[BookingController::class,'destroy']);
     });
 });
