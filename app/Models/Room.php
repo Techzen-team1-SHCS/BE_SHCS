@@ -27,4 +27,35 @@ class Room extends Model
     {
         return $this->belongsTo(Hotel::class, 'hotel_id');
     }
+    public function bookings()
+    {
+        return $this->hasMany(Booking::class, 'room_id');
+    }
+     public function isAvailable($requiredQuantity = 1): bool
+    {
+        return $this->quantity >= $requiredQuantity &&
+               $this->availability_status === 'available';
+    }
+
+    /**
+     * Giảm số lượng phòng (realtime)
+     */
+    public function reduceQuantity($quantity): bool
+    {
+        if ($this->quantity < $quantity) {
+            return false;
+        }
+
+        $this->decrement('quantity', $quantity);
+        return true;
+    }
+
+    /**
+     * Khôi phục số lượng phòng (realtime)
+     */
+    public function restoreQuantity($quantity): bool
+    {
+        $this->increment('quantity', $quantity);
+        return true;
+    }
 }
