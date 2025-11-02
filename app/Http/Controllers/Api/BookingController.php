@@ -19,7 +19,7 @@ class BookingController extends Controller
         return response()->json(['data'=>$bookings]);
     }
     public function show($id){
-        $booking=Booking::with(['user','room'])->findOrFail($id);
+        $booking=Booking::with(['user','room','room.hotel','room.hotel.images'])->findOrFail($id);
         if(!$booking){
           return response()->json([
             'status'=>404,
@@ -75,6 +75,7 @@ class BookingController extends Controller
                 'room_id' => $request->room_id,
                 'check_in' => $request->check_in,
                 'check_out' => $request->check_out,
+                'quantity' => $request->quantity,
                 'total_price' => $totalPrice,
                 'status' => 'pending'
             ]);
@@ -132,12 +133,13 @@ class BookingController extends Controller
             'message'=>'Booking deleted'
         ]);
     }
-     public function cancel($id)
+    public function cancel($id)
     {
         DB::beginTransaction();
 
         try {
             $booking = Booking::with('room')->find($id);
+
             if (!$booking) {
                 return response()->json([
                     'success' => false,
@@ -152,7 +154,23 @@ class BookingController extends Controller
                 ], 400);
             }
 
-            // 🔒 LOCK room
+            // 🕒 Tính toán chính sách hủy
+            $checkIn = Carbon::parse($booking->check_in);
+            $now = Carbon::now();
+            $cancelFreeDays = $booking->cancel_free_days ?? 7; // default 7 ngày
+            $freeUntil = $checkIn->copy()->subDays($cancelFreeDays)->endOfDay();
+
+            $cancelFee = 0;
+            $isFree = true;
+
+            // Nếu hủy sau thời hạn miễn phí
+            if ($now->greaterThan($freeUntil)) {
+                $isFree = false;
+                // Phạt 1 đêm (tùy bạn, có thể thay = $booking->total_price)
+                $cancelFee = $booking->total_price / ($booking->nights ?? 1);
+            }
+
+            // 🔒 LOCK room (giống code cũ)
             $room = Room::where('id', $booking->room_id)
                 ->lockForUpdate()
                 ->first();
@@ -161,23 +179,35 @@ class BookingController extends Controller
             $room->increment('quantity', $booking->quantity);
             $newQuantity = $room->fresh()->quantity;
 
-            // Cập nhật trạng thái booking
-            $booking->update(['status' => 'cancelled']);
+            // Cập nhật trạng thái booking + phí hủy
+            $booking->update([
+                'status' => 'cancelled',
+                'cancel_fee' => $cancelFee,
+                'cancelled_at' => now()
+            ]);
 
             DB::commit();
 
-            // 📢 Broadcast realtime updates
+            // 📢 Broadcast realtime updates (giữ nguyên)
             event(new RoomQuantityUpdated($room->id, $newQuantity, 'cancelled', $booking->id));
 
             return response()->json([
                 'success' => true,
-                'message' => 'Booking cancelled successfully',
-                'data' => $booking->load(['user', 'room']),
-                'available_quantity' => $newQuantity
+                'message' => $isFree
+                    ? 'Hủy phòng thành công, không mất phí.'
+                    : 'Hủy phòng thành công, bị phạt ' . number_format($cancelFee, 0, ',', '.') . ' VND.',
+                'data' => [
+                    'booking' => $booking->load(['user', 'room']),
+                    'cancel_fee' => $cancelFee,
+                    'is_free' => $isFree,
+                    'free_until' => $freeUntil->format('H:i d/m/Y'),
+                    'available_quantity' => $newQuantity,
+                ]
             ]);
 
         } catch (\Exception $e) {
             DB::rollBack();
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to cancel booking',
@@ -185,6 +215,7 @@ class BookingController extends Controller
             ], 500);
         }
     }
+
       public function getRealtimeQuantity($id)
     {
         $room = Room::find($id);
