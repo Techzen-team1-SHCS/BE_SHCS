@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\BookingController;
 use App\Http\Controllers\Api\HotelController;
 use App\Http\Controllers\Api\NotificationController;
+use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\RecommendationController;
 use App\Http\Controllers\Api\RoomController;
 use App\Http\Controllers\Api\UserBehaviorController;
@@ -47,6 +48,8 @@ Route::group(['prefix' => 'auth'], function () {
     Route::get('/rooms',[RoomController::class,'index']);
     Route::get('/room',[RoomController::class,'show']);
     Route::get('/hotels/{hotelId}/available-rooms', [RoomController::class, 'getAvailableRooms']);
+    //Payment
+    Route::get('/vnpay/return', [PaymentController::class, 'vnpayReturn']);
     Route::group(['middleware' => 'auth:api'], function () {
         Route::post('/logout',[UserController::class,'logout']);
         Route::post('/update/{id}',[UserController::class,'update']);
@@ -71,7 +74,7 @@ Route::group(['prefix' => 'auth'], function () {
         Route::put('/booking/{id}',[BookingController::class,'update']);
         Route::delete('/booking/{id}',[BookingController::class,'destroy']);
         Route::post('/{id}/cancel', [BookingController::class, 'cancel']);
-
+        Route::post('/vnpay/create-payment', [PaymentController::class, 'createPayment']);
         Route::get('/rooms/{id}/realtime', [BookingController::class, 'getRealtimeQuantity']);
     });
 });
