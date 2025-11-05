@@ -17,6 +17,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Cloudinary\Uploader; // từ SDK, không phải Facade Laravel
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Password;
@@ -100,45 +101,45 @@ class UserController extends Controller
 
     }
     public function show($id)
-{
-    try {
-        // 🔍 1️⃣ Tìm user theo ID
-        $user = User::findOrFail($id);
+    {
+        try {
+            // 🔍 1️⃣ Tìm user theo ID
+            $user = User::findOrFail($id);
 
-        // 🔗 2️⃣ Lấy avatar từ bảng images
-        $avatarUrl = Image::where('reference_id', $user->id)
-            ->where('type', 'avatar')
-            ->value('url');
+            // 🔗 2️⃣ Lấy avatar từ bảng images
+            $avatarUrl = Image::where('reference_id', $user->id)
+                ->where('type', 'avatar')
+                ->value('url');
 
-        // ✅ 3️⃣ Trả về JSON
-        return response()->json([
-            'status' => 200,
-            'user' => [
-                'id'          => $user->id,
-                'name'        => $user->name,
-                'email'       => $user->email,
-                'phone'       => $user->phone,
-                'role'        => $user->role,
-                'avatar_url'  => $avatarUrl,
-                'created_at'  => $user->created_at,
-                'updated_at'  => $user->updated_at,
-            ]
-        ], 200);
+            // ✅ 3️⃣ Trả về JSON
+            return response()->json([
+                'status' => 200,
+                'user' => [
+                    'id'          => $user->id,
+                    'name'        => $user->name,
+                    'email'       => $user->email,
+                    'phone'       => $user->phone,
+                    'role'        => $user->role,
+                    'avatar_url'  => $avatarUrl,
+                    'created_at'  => $user->created_at,
+                    'updated_at'  => $user->updated_at,
+                ]
+            ], 200);
 
-    } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
-        return response()->json([
-            'status' => 404,
-            'error'  => 'Người dùng không tồn tại'
-        ], 404);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'status' => 404,
+                'error'  => 'Người dùng không tồn tại'
+            ], 404);
 
-    } catch (\Exception $e) {
-        return response()->json([
-            'status' => 500,
-            'error'  => 'Đã xảy ra lỗi hệ thống',
-            'message' => $e->getMessage() // ⚠️ để debug tạm (bạn có thể xóa khi deploy)
-        ], 500);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 500,
+                'error'  => 'Đã xảy ra lỗi hệ thống',
+                'message' => $e->getMessage() // ⚠️ để debug tạm (bạn có thể xóa khi deploy)
+            ], 500);
+        }
     }
-}
 
 
     public function login(LoginRequest $request) ///
@@ -277,92 +278,142 @@ class UserController extends Controller
                 ], 201);
     }
     public function update(Request $request, $id)
-{
-    // 🟢 1️⃣ Validate dữ liệu
-    $validated = $request->validate([
-        'name'     => 'nullable|string|max:255',
-        'email'    => 'nullable|email|max:255',
-        'phone'    => 'nullable|string|max:20',
-        'password' => 'nullable|string|min:6',
-        'avatar'   => 'nullable|image|max:5120', // giới hạn 5MB
-    ]);
+    {
+        // 🟢 1️⃣ Validate dữ liệu
+        $validated = $request->validate([
+            'name'     => 'nullable|string|max:255',
+            'email'    => 'nullable|email|max:255',
+            'phone'    => 'nullable|string|max:20',
+            'password' => 'nullable|string|min:6',
+            'avatar'   => 'nullable|image|max:5120',
+            'gender'   =>'nullable|string|max:50',
+            'birth'    =>'nullable|date|before_or_equal:today',
+            'address'  =>'nullable|string|max:50'
+        ]);
 
-    // 🟢 2️⃣ Tìm user
-    $user = User::findOrFail($id);
+        // 🟢 2️⃣ Tìm user
+        $user = User::findOrFail($id);
 
-    // 🟢 3️⃣ Cập nhật thông tin cơ bản
-    $user->update([
-        'name'     => $validated['name'] ?? $user->name,
-        'email'    => $validated['email'] ?? $user->email,
-        'phone'    => $validated['phone'] ?? $user->phone,
-        'password' => !empty($validated['password']) ? Hash::make($validated['password']) : $user->password,
-    ]);
+        // 🟢 3️⃣ Cập nhật thông tin cơ bản
+        $user->update([
+            'name'     => $validated['name'] ?? $user->name,
+            'email'    => $validated['email'] ?? $user->email,
+            'phone'    => $validated['phone'] ?? $user->phone,
+            'password' => !empty($validated['password']) ? Hash::make($validated['password']) : $user->password,
+            'gender'   =>$validated['gender'] ?? $user->gender,
+            'birth'    =>$validated['birth'] ?? $user->birth,
+            'address'  =>$validated['address'] ?? $user->address
+        ]);
 
-    // 🟢 4️⃣ Upload avatar nếu có
-    $avatarUrl = '';
-    if ($request->hasFile('avatar') && $request->file('avatar')->isValid()) {
-        try {
-            $file = $request->file('avatar');
-            $imgData = base64_encode(file_get_contents($file->getRealPath()));
-            $apiKey = env('IMGBB_API_KEY');
+        // 🟢 4️⃣ Upload avatar nếu có
+        $avatarUrl = '';
+        if ($request->hasFile('avatar') && $request->file('avatar')->isValid()) {
+            try {
+                $file = $request->file('avatar');
+                $imgData = base64_encode(file_get_contents($file->getRealPath()));
+                $apiKey = env('IMGBB_API_KEY');
 
-            $ch = curl_init();
-            curl_setopt_array($ch, [
-                CURLOPT_URL => 'https://api.imgbb.com/1/upload?key=' . $apiKey,
-                CURLOPT_POST => 1,
-                CURLOPT_POSTFIELDS => ['image' => $imgData],
-                CURLOPT_RETURNTRANSFER => true,
-            ]);
+                $ch = curl_init();
+                curl_setopt_array($ch, [
+                    CURLOPT_URL => 'https://api.imgbb.com/1/upload?key=' . $apiKey,
+                    CURLOPT_POST => 1,
+                    CURLOPT_POSTFIELDS => ['image' => $imgData],
+                    CURLOPT_RETURNTRANSFER => true,
+                ]);
 
-            $response = curl_exec($ch);
+                $response = curl_exec($ch);
 
-            if (curl_errno($ch)) {
-                Log::error('❌ ImgBB cURL error: ' . curl_error($ch));
-                return response()->json(['error' => 'Lỗi khi upload ảnh lên ImgBB'], 500);
+                if (curl_errno($ch)) {
+                    Log::error('❌ ImgBB cURL error: ' . curl_error($ch));
+                    return response()->json(['error' => 'Lỗi khi upload ảnh lên ImgBB'], 500);
+                }
+
+                curl_close($ch);
+
+                $data = json_decode($response, true);
+                $avatarUrl = $data['data']['url'] ?? '';
+
+                if (!$avatarUrl) {
+                    \Log::error('❌ ImgBB upload failed. Response: ' . $response);
+                    return response()->json(['error' => 'Upload ảnh thất bại. Vui lòng thử lại!'], 500);
+                }
+
+                // 🔄 Xóa avatar cũ (nếu có)
+                Image::where('reference_id', $user->id)
+                    ->where('type', 'avatar')
+                    ->delete();
+
+                // ➕ Lưu avatar mới
+                Image::create([
+                    'url'          => $avatarUrl,
+                    'type'         => 'avatar',
+                    'reference_id' => $user->id,
+                ]);
+
+            } catch (\Exception $e) {
+                \Log::error('❌ Lỗi upload avatar: ' . $e->getMessage());
+                return response()->json(['error' => 'Đã xảy ra lỗi khi cập nhật avatar.'], 500);
             }
-
-            curl_close($ch);
-
-            $data = json_decode($response, true);
-            $avatarUrl = $data['data']['url'] ?? '';
-
-            if (!$avatarUrl) {
-                \Log::error('❌ ImgBB upload failed. Response: ' . $response);
-                return response()->json(['error' => 'Upload ảnh thất bại. Vui lòng thử lại!'], 500);
-            }
-
-            // 🔄 Xóa avatar cũ (nếu có)
-            Image::where('reference_id', $user->id)
-                ->where('type', 'avatar')
-                ->delete();
-
-            // ➕ Lưu avatar mới
-            Image::create([
-                'url'          => $avatarUrl,
-                'type'         => 'avatar',
-                'reference_id' => $user->id,
-            ]);
-
-        } catch (\Exception $e) {
-            \Log::error('❌ Lỗi upload avatar: ' . $e->getMessage());
-            return response()->json(['error' => 'Đã xảy ra lỗi khi cập nhật avatar.'], 500);
         }
+
+        // 🟢 5️⃣ Lấy URL avatar hiện tại (mới nhất)
+        $currentAvatar = $avatarUrl ?: Image::where('reference_id', $user->id)
+            ->where('type', 'avatar')
+            ->value('url');
+
+        // 🟢 6️⃣ Trả về kết quả JSON
+        return response()->json([
+            'status'      => 'success',
+            'message'     => 'Cập nhật thông tin thành công',
+            'data'        => $user->fresh(),
+            'avatar_url'  => $currentAvatar,
+        ], 200);
     }
 
-    // 🟢 5️⃣ Lấy URL avatar hiện tại (mới nhất)
-    $currentAvatar = $avatarUrl ?: Image::where('reference_id', $user->id)
-        ->where('type', 'avatar')
-        ->value('url');
+    public function uploadAvatar(Request $request, $id)
+{
+    $request->validate([
+        'avatar' => 'required|image|max:5120', // file name đúng là avatar
+    ]);
 
-    // 🟢 6️⃣ Trả về kết quả JSON
-    return response()->json([
-        'status'      => 'success',
-        'message'     => 'Cập nhật thông tin thành công',
-        'data'        => $user->fresh(),
-        'avatar_url'  => $currentAvatar,
-    ], 200);
+    $user = User::findOrFail($id);
+
+    try {
+        $file = $request->file('avatar');
+        $imgData = base64_encode(file_get_contents($file->getRealPath()));
+        $apiKey = env('IMGBB_API_KEY');
+
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL => 'https://api.imgbb.com/1/upload?key=' . $apiKey,
+            CURLOPT_POST => 1,
+            CURLOPT_POSTFIELDS => ['image' => $imgData],
+            CURLOPT_RETURNTRANSFER => true,
+        ]);
+
+        $response = curl_exec($ch);
+        curl_close($ch);
+
+        $data = json_decode($response, true);
+        $avatarUrl = $data['data']['url'] ?? null;
+
+        if (!$avatarUrl) {
+            return response()->json(['error' => 'Upload ảnh thất bại.'], 500);
+        }
+
+        // 🟢 Lưu URL vào cột `users.image`
+        $user->update(['image' => $avatarUrl]);
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Upload avatar thành công',
+            'avatar_url' => $avatarUrl,
+        ]);
+
+    } catch (\Throwable $th) {
+        return response()->json(['error' => 'Lỗi hệ thống'], 500);
+    }
 }
-
 
     public function destroy($id)
     {
