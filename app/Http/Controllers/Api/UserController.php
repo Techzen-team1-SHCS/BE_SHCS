@@ -18,6 +18,8 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Cloudinary\Uploader; // từ SDK, không phải Facade Laravel
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Password;
 
@@ -277,92 +279,136 @@ class UserController extends Controller
                 ], 201);
     }
     public function update(Request $request, $id)
-{
-    // 🟢 1️⃣ Validate dữ liệu
-    $validated = $request->validate([
-        'name'     => 'nullable|string|max:255',
-        'email'    => 'nullable|email|max:255',
-        'phone'    => 'nullable|string|max:20',
-        'password' => 'nullable|string|min:6',
-        'avatar'   => 'nullable|image|max:5120', // giới hạn 5MB
-    ]);
+    {
+        // 1️⃣ Validate dữ liệu
+        $validated = $request->validate([
+            'name'     => 'nullable|string|max:255',
+            'email'    => 'nullable|email|max:255',
+            'phone'    => 'nullable|string|max:20',
+            'password' => 'nullable|string|min:6',
+            'gender'   => 'nullable|string|min:10',
+            'birth'    => 'nullable|date',
+            'address'  => 'nullable|string|max:255',
+            'avatar'   => 'nullable|image|max:5120', // 5MB
+        ]);
 
-    // 🟢 2️⃣ Tìm user
-    $user = User::findOrFail($id);
+        // 2️⃣ Tìm user
+        $user = User::findOrFail($id);
 
-    // 🟢 3️⃣ Cập nhật thông tin cơ bản
-    $user->update([
-        'name'     => $validated['name'] ?? $user->name,
-        'email'    => $validated['email'] ?? $user->email,
-        'phone'    => $validated['phone'] ?? $user->phone,
-        'password' => !empty($validated['password']) ? Hash::make($validated['password']) : $user->password,
-    ]);
+        // 3️⃣ Cập nhật thông tin cơ bản
+        $user->update([
+            'name'     => $validated['name'] ?? $user->name,
+            'email'    => $validated['email'] ?? $user->email,
+            'phone'    => $validated['phone'] ?? $user->phone,
+            'password' => !empty($validated['password']) ? Hash::make($validated['password']) : $user->password,
+            'gender'   => $validated['gender'] ?? $user->gender,
+            'birth'    => $validated['birth'] ?? $user->birth,
+            'address'  => $validated['address'] ?? $user->address
+        ]);
 
-    // 🟢 4️⃣ Upload avatar nếu có
-    $avatarUrl = '';
-    if ($request->hasFile('avatar') && $request->file('avatar')->isValid()) {
-        try {
-            $file = $request->file('avatar');
-            $imgData = base64_encode(file_get_contents($file->getRealPath()));
-            $apiKey = env('IMGBB_API_KEY');
+        // 4️⃣ Upload avatar nếu có
+        if ($request->hasFile('avatar') && $request->file('avatar')->isValid()) {
+            try {
+                $file = $request->file('avatar');
 
-            $ch = curl_init();
-            curl_setopt_array($ch, [
-                CURLOPT_URL => 'https://api.imgbb.com/1/upload?key=' . $apiKey,
-                CURLOPT_POST => 1,
-                CURLOPT_POSTFIELDS => ['image' => $imgData],
-                CURLOPT_RETURNTRANSFER => true,
-            ]);
+                // Chuyển ảnh sang base64
+                $imgData = base64_encode(file_get_contents($file->getRealPath()));
+                $apiKey = env('IMGBB_API_KEY');
 
-            $response = curl_exec($ch);
+                // Gọi API ImgBB
+                $ch = curl_init();
+                curl_setopt_array($ch, [
+                    CURLOPT_URL => 'https://api.imgbb.com/1/upload?key=' . $apiKey,
+                    CURLOPT_POST => 1,
+                    CURLOPT_POSTFIELDS => ['image' => $imgData],
+                    CURLOPT_RETURNTRANSFER => true,
+                ]);
+                $response = curl_exec($ch);
 
-            if (curl_errno($ch)) {
-                Log::error('❌ ImgBB cURL error: ' . curl_error($ch));
-                return response()->json(['error' => 'Lỗi khi upload ảnh lên ImgBB'], 500);
+                if (curl_errno($ch)) {
+                    Log::error('ImgBB cURL error: ' . curl_error($ch));
+                    return response()->json(['error' => 'Lỗi khi upload ảnh lên ImgBB'], 500);
+                }
+
+                curl_close($ch);
+
+                $data = json_decode($response, true);
+                $avatarUrl = $data['data']['url'] ?? null;
+
+                if (!$avatarUrl) {
+                    Log::error('ImgBB upload failed. Response: ' . $response);
+                    return response()->json(['error' => 'Upload avatar thất bại'], 500);
+                }
+
+                // 5️⃣ Lưu thẳng URL vào cột image của user
+                $user->image = $avatarUrl;
+                $user->save();
+
+            } catch (\Exception $e) {
+                Log::error('Lỗi upload avatar: ' . $e->getMessage());
+                return response()->json(['error' => 'Đã xảy ra lỗi khi cập nhật avatar'], 500);
             }
-
-            curl_close($ch);
-
-            $data = json_decode($response, true);
-            $avatarUrl = $data['data']['url'] ?? '';
-
-            if (!$avatarUrl) {
-                \Log::error('❌ ImgBB upload failed. Response: ' . $response);
-                return response()->json(['error' => 'Upload ảnh thất bại. Vui lòng thử lại!'], 500);
-            }
-
-            // 🔄 Xóa avatar cũ (nếu có)
-            Image::where('reference_id', $user->id)
-                ->where('type', 'avatar')
-                ->delete();
-
-            // ➕ Lưu avatar mới
-            Image::create([
-                'url'          => $avatarUrl,
-                'type'         => 'avatar',
-                'reference_id' => $user->id,
-            ]);
-
-        } catch (\Exception $e) {
-            \Log::error('❌ Lỗi upload avatar: ' . $e->getMessage());
-            return response()->json(['error' => 'Đã xảy ra lỗi khi cập nhật avatar.'], 500);
         }
+
+        // 6️⃣ Trả về kết quả JSON
+        return response()->json([
+            'status'     => 'success',
+            'message'    => 'Cập nhật thông tin thành công',
+            'data'       => $user->fresh(),
+            'avatar_url' => $user->image,
+        ], 200);
     }
 
-    // 🟢 5️⃣ Lấy URL avatar hiện tại (mới nhất)
-    $currentAvatar = $avatarUrl ?: Image::where('reference_id', $user->id)
-        ->where('type', 'avatar')
-        ->value('url');
+    public function uploadAvatar(Request $request, $id)
+    {
+        $validated = $request->validate([
+            'avatar' => 'required|image|max:5120',
+        ]);
 
-    // 🟢 6️⃣ Trả về kết quả JSON
-    return response()->json([
-        'status'      => 'success',
-        'message'     => 'Cập nhật thông tin thành công',
-        'data'        => $user->fresh(),
-        'avatar_url'  => $currentAvatar,
-    ], 200);
-}
+        $user = User::findOrFail($id);
 
+        if ($request->hasFile('avatar') && $request->file('avatar')->isValid()) {
+            try {
+                $file = $request->file('avatar');
+                $imgData = base64_encode(file_get_contents($file->getRealPath()));
+                $apiKey = env('IMGBB_API_KEY');
+
+                // Dùng Laravel Http client
+                $response = Http::asForm()->post('https://api.imgbb.com/1/upload', [
+                    'key' => $apiKey,
+                    'image' => $imgData,
+                ]);
+
+                if (! $response->successful()) {
+                    Log::error('ImgBB upload failed: ' . $response->body());
+                    return response()->json(['error' => 'Upload avatar thất bại'], 500);
+                }
+
+                $data = $response->json();
+                $avatarUrl = $data['data']['url'] ?? null;
+
+                if (! $avatarUrl) {
+                    Log::error('ImgBB response invalid: ' . $response->body());
+                    return response()->json(['error' => 'Upload avatar thất bại'], 500);
+                }
+
+                // Lưu trực tiếp vào cột image
+                $user->image = $avatarUrl;
+                $user->save();
+
+                return response()->json([
+                    'status' => 'success',
+                    'message' => 'Upload avatar thành công',
+                    'avatar_url' => $avatarUrl,
+                    'user' => $user->fresh(),
+                ], 200);
+
+            } catch (\Exception $e) {
+                Log::error('Lỗi upload avatar: ' . $e->getMessage());
+                return response()->json(['error' => 'Đã xảy ra lỗi khi upload avatar'], 500);
+            }
+        }
+    }
 
     public function destroy($id)
     {
