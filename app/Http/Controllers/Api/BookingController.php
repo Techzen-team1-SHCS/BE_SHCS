@@ -9,6 +9,7 @@ use App\Models\Booking;
 use App\Models\Room;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
@@ -19,7 +20,7 @@ class BookingController extends Controller
         return response()->json(['data'=>$bookings]);
     }
     public function show($id){
-        $booking=Booking::with(['user','room','room.hotel','room.hotel.images'])->findOrFail($id);
+        $booking=Booking::with(['room','room.hotel','room.hotel.images'])->findOrFail($id);
         if(!$booking){
           return response()->json([
             'status'=>404,
@@ -31,6 +32,30 @@ class BookingController extends Controller
             'data'=>$booking,
             'success'=>'Get booking successfully'
         ]);
+    }
+    public function getBookingUser()
+    {
+        $user = Auth::user();
+
+        // Lấy danh sách booking theo user_id, kèm quan hệ
+        $bookings = Booking::with(['room', 'room.hotel', 'room.hotel.images'])
+            ->where('user_id', $user->id)
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        // Nếu không có booking nào
+        if ($bookings->isEmpty()) {
+            return response()->json([
+                'status' => 404,
+                'message' => 'Không tìm thấy booking nào'
+            ], 404);
+        }
+
+        // Trả về danh sách booking
+        return response()->json([
+            'status' => 200,
+            'data' => $bookings
+        ], 200);
     }
     public function store(Request $request)
     {
@@ -157,7 +182,7 @@ class BookingController extends Controller
             // 🕒 Tính toán chính sách hủy
             $checkIn = Carbon::parse($booking->check_in);
             $now = Carbon::now();
-            $cancelFreeDays = $booking->cancel_free_days ?? 7; // default 7 ngày
+            $cancelFreeDays = $booking->cancel_free_days ?? 3; // default 7 ngày
             $freeUntil = $checkIn->copy()->subDays($cancelFreeDays)->endOfDay();
 
             $cancelFee = 0;

@@ -24,7 +24,11 @@ class User extends Authenticatable
         'password',
         'phone',
         'role',
-        
+        'gender',
+        'address',
+        'birth',
+        'image'
+
     ];
 
     /**
@@ -49,14 +53,6 @@ class User extends Authenticatable
     {
         return $this->hasMany(UserBehavior::class, 'user_id');
     }
-
-    // 🔹 Quan hệ với Image (ảnh đại diện hoặc avatar user)
-    public function images()
-    {
-        return $this->hasMany(Image::class, 'reference_id')
-                    ->where('type', 'avatar');
-    }
-
     // 🔹 Nếu user có thể tạo khách sạn
     public function hotels()
     {
