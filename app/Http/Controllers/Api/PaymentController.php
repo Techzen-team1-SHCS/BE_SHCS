@@ -3,9 +3,13 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Mail\PaymentBilling;
 use App\Models\Booking;
 use App\Models\Payment;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 
 class PaymentController extends Controller
 {
@@ -19,11 +23,24 @@ class PaymentController extends Controller
     date_default_timezone_set('Asia/Ho_Chi_Minh');
 
     $booking = Booking::findOrFail($request->booking_id);
-    
+
     if ($booking->status === 'confirmed') {
         return response()->json(['status' => 'error', 'message' => 'Booking đã thanh toán']);
     }
+    if (Carbon::parse($booking->check_out)->isPast()) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Booking này đã hết hạn, không thể thanh toán.'
+        ], 400);
+    }
 
+    // ❌ Nếu booking bị hủy
+    if ($booking->status === 'cancelled') {
+        return response()->json([
+            'success' => false,
+            'message' => 'Booking đã bị hủy, không thể thanh toán.'
+        ], 400);
+    }
     $vnp_TxnRef = $booking->id . '_' . time();
     $vnp_Amount = (int)($booking->total_price * 100);
     $vnp_IpAddr = $request->ip();
@@ -43,17 +60,11 @@ class PaymentController extends Controller
         "vnp_ReturnUrl" => $this->vnp_Returnurl,
         "vnp_TxnRef" => $vnp_TxnRef,                // ✅ Bắt buộc
         "vnp_ExpireDate" => date('YmdHis', strtotime('+15 minutes')),
-        // "vnp_BankCode" => "NCB", // ❌ KHÔNG được gửi bank code từ đầu (để user chọn)
     ];
-
-    // Sắp xếp theo key
     ksort($inputData);
-
-    // Build query string và hash data
     $query = '';
     $hashData = '';
     $i = 0;
-
     foreach ($inputData as $key => $value) {
         if ($i == 1) {
             $hashData .= '&' . urlencode($key) . "=" . urlencode($value);
@@ -63,18 +74,8 @@ class PaymentController extends Controller
         }
         $query .= urlencode($key) . "=" . urlencode($value) . '&';
     }
-
-    // QUAN TRỌNG: Sửa các biến chưa định nghĩa
     $vnpSecureHash = hash_hmac('sha512', $hashData, $this->vnp_HashSecret);
     $vnp_Url = $this->vnp_Url . "?" . $query . "vnp_SecureHash=" . $vnpSecureHash;
-
-    \Log::info('VNPay URL Generated', [
-        'booking_id' => $booking->id,
-        'hash_data' => $hashData,
-        'secure_hash' => $vnpSecureHash, // ✅ Đã sửa tên biến
-        'url' => $vnp_Url,
-    ]);
-
     // Tạo record Payment
     Payment::create([
         'booking_id' => $booking->id,
@@ -83,36 +84,27 @@ class PaymentController extends Controller
         'payment_method' => 'vnpay',
         'vnp_txn_ref' => $vnp_TxnRef,
     ]);
-
     return response()->json(['payment_url' => $vnp_Url]);
 }
   public function vnpayReturn(Request $request)
 {
-    \Log::info('====== VNPay RETURN START ======');
-    \Log::info('All return data:', $request->all());
-
     try {
         $vnp_SecureHash = $request->vnp_SecureHash;
 
         if (!$vnp_SecureHash) {
-            \Log::error('Missing vnp_SecureHash');
             return response()->json([
                 'status' => 'error',
                 'message' => 'Thiếu chữ ký bảo mật'
             ], 400);
         }
-
         $inputData = [];
         foreach ($request->all() as $key => $value) {
             if (substr($key, 0, 4) === "vnp_") {
                 $inputData[$key] = $value;
             }
         }
-
         unset($inputData['vnp_SecureHash'], $inputData['vnp_SecureHashType']);
-
         ksort($inputData);
-
         $i = 0;
         $hashData = "";
         foreach ($inputData as $key => $value) {
@@ -123,17 +115,8 @@ class PaymentController extends Controller
                 $i = 1;
             }
         }
-
         $secureHash = hash_hmac('sha512', $hashData, $this->vnp_HashSecret);
-
-        \Log::info('Hash verification:', [
-            'our_hash' => $secureHash,
-            'vnpay_hash' => $vnp_SecureHash,
-            'hash_match' => ($secureHash === $vnp_SecureHash)
-        ]);
-
         if ($secureHash !== $vnp_SecureHash) {
-            \Log::error('Invalid VNPay signature');
             return response()->json([
                 'status' => 'error',
                 'message' => 'Sai chữ ký bảo mật'
@@ -144,13 +127,8 @@ class PaymentController extends Controller
         $vnp_ResponseCode = $request->vnp_ResponseCode;
         $vnp_TransactionNo = $request->vnp_TransactionNo;
         $vnp_Amount = $request->vnp_Amount / 100;
-
-        \Log::info('Transaction details:', compact('vnp_TxnRef', 'vnp_ResponseCode', 'vnp_TransactionNo', 'vnp_Amount'));
-
         $payment = Payment::where('vnp_txn_ref', $vnp_TxnRef)->first();
-
         if (!$payment) {
-            \Log::error('Payment not found for vnp_TxnRef: ' . $vnp_TxnRef);
             return response()->json([
                 'status' => 'error',
                 'message' => 'Không tìm thấy thông tin thanh toán'
@@ -158,7 +136,6 @@ class PaymentController extends Controller
         }
 
         if ($payment->status === 'paid') {
-            \Log::warning('Payment already processed as paid');
             return response()->json([
                 'status' => 'success',
                 'message' => 'Giao dịch đã được xử lý thành công trước đó'
@@ -177,19 +154,25 @@ class PaymentController extends Controller
             ]);
 
             $booking = $payment->booking;
+            $booking->load('user', 'room.hotel');
             if ($booking) {
                 $booking->update([
                     'status' => 'confirmed',
                     'payment_status' => 'paid'
                 ]);
+                try {
+        // Sinh PDF hóa đơn
+                    $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.invoice', compact('booking'));
+                    $pdfPath = storage_path('app/public/invoice-' . $booking->id . '.pdf');
+                    $pdf->save($pdfPath);
+
+                    // Gửi mail
+                    Mail::to($booking->user->email)->send(new PaymentBilling($booking, $pdfPath));
+
+                } catch (\Exception $e) {
+                    Log::error('Send invoice failed: ' . $e->getMessage());
+                }
             }
-
-            \Log::info('Payment successful:', [
-                'payment_id' => $payment->id,
-                'booking_id' => $booking ? $booking->id : null,
-                'transaction_no' => $vnp_TransactionNo
-            ]);
-
             $redirectUrl = 'http://localhost:5173/payment-result?status=success&transactionId=' . $vnp_TxnRef . '&bookingId=' . ($booking->id ?? '');
             return redirect()->to($redirectUrl);
 
@@ -214,13 +197,6 @@ class PaymentController extends Controller
             ];
 
             $errorMessage = $errorMessages[$vnp_ResponseCode] ?? 'Thanh toán thất bại (Mã lỗi: ' . $vnp_ResponseCode . ')';
-
-            \Log::warning('Payment failed:', [
-                'payment_id' => $payment->id,
-                'response_code' => $vnp_ResponseCode,
-                'error_message' => $errorMessage
-            ]);
-
             return response()->json([
                 'status' => 'failed',
                 'message' => $errorMessage,
@@ -229,20 +205,11 @@ class PaymentController extends Controller
         }
 
     } catch (\Exception $e) {
-        \Log::error('VNPay return processing error:', [
-            'message' => $e->getMessage(),
-            'file' => $e->getFile(),
-            'line' => $e->getLine()
-        ]);
-
         return response()->json([
             'status' => 'error',
             'message' => 'Lỗi hệ thống khi xử lý kết quả thanh toán'
         ], 500);
     }
 }
-
-
-
 
 }

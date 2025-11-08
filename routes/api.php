@@ -52,12 +52,11 @@ Route::group(['prefix' => 'auth'], function () {
     Route::get('/vnpay/return', [PaymentController::class, 'vnpayReturn']);
     Route::group(['middleware' => 'auth:api'], function () {
         Route::post('/logout',[UserController::class,'logout']);
-        Route::post('/update/{id}',[UserController::class,'update']);
-
+        Route::post('/user/update/{id}',[UserController::class,'update']);
+        Route::post('/user/upload-avatar/{id}',[UserController::class,'uploadAvatar']);
         //UserBehavior
         Route::post('/user-behaviors/batch', [UserBehaviorController::class, 'batch']);
         //Hotel
-
         Route::post('/hotel',[HotelController::class,'store']);
         Route::put('/hotel/{id}',[HotelController::class,'update']);
         Route::delete('/hotel/{id}',[HotelController::class,'destroy']);
@@ -70,10 +69,12 @@ Route::group(['prefix' => 'auth'], function () {
         //Booking
         Route::get('/booking',[BookingController::class,'index']);
         Route::get('/booking/{id}',[BookingController::class,'show']);
+        Route::get('bookings/user',[BookingController::class,'getBookingUser']);
         Route::post('/booking',[BookingController::class,'store']);
         Route::put('/booking/{id}',[BookingController::class,'update']);
         Route::delete('/booking/{id}',[BookingController::class,'destroy']);
-        Route::post('/{id}/cancel', [BookingController::class, 'cancel']);
+        Route::post('/booking/cancel/{id}', [BookingController::class, 'cancel']);
+        //Payment
         Route::post('/vnpay/create-payment', [PaymentController::class, 'createPayment']);
         Route::get('/rooms/{id}/realtime', [BookingController::class, 'getRealtimeQuantity']);
     });
