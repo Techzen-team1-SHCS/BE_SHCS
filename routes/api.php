@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\BookingController;
+use App\Http\Controllers\Api\CommentController;
 use App\Http\Controllers\Api\HotelController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\PaymentController;
@@ -50,6 +51,8 @@ Route::group(['prefix' => 'auth'], function () {
     Route::get('/hotels/{hotelId}/available-rooms', [RoomController::class, 'getAvailableRooms']);
     //Payment
     Route::get('/vnpay/return', [PaymentController::class, 'vnpayReturn']);
+    //Comments
+    Route::get('/comments', [CommentController::class, 'index']);
     Route::group(['middleware' => 'auth:api'], function () {
         Route::post('/logout',[UserController::class,'logout']);
         Route::post('/user/update/{id}',[UserController::class,'update']);
@@ -74,6 +77,8 @@ Route::group(['prefix' => 'auth'], function () {
         Route::put('/booking/{id}',[BookingController::class,'update']);
         Route::delete('/booking/{id}',[BookingController::class,'destroy']);
         Route::post('/booking/cancel/{id}', [BookingController::class, 'cancel']);
+        // Tạo comment mới
+        Route::post('/comments', [CommentController::class, 'store']);
         //Payment
         Route::post('/vnpay/create-payment', [PaymentController::class, 'createPayment']);
         Route::get('/rooms/{id}/realtime', [BookingController::class, 'getRealtimeQuantity']);
