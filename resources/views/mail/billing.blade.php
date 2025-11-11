@@ -8,7 +8,7 @@
 
     <div style="max-width:600px;margin:auto;background:#ffffff;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.1);">
         <div style="background-color:#ECC2C0;padding:15px 25px;text-align:center;">
-            <img src="{{ $message->embed(public_path('images/logo/logo.png')) }}" alt="Hotel Logo" style="width: 140px;">
+            <img src="{{ $message->embed(public_path('images/logo/logo-two.png')) }}" alt="Hotel Logo" style="width: 140px;">
             <h2 style="margin:0;color:#2B2B2F;">Cảm ơn bạn đã đặt phòng!</h2>
         </div>
 

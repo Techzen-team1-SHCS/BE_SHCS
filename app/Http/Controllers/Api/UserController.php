@@ -286,7 +286,7 @@ class UserController extends Controller
             'email'    => 'nullable|email|max:255',
             'phone'    => 'nullable|string|max:20',
             'password' => 'nullable|string|min:6',
-            'gender'   => 'nullable|string|min:10',
+            'gender'   => 'nullable|string|min:3',
             'birth'    => 'nullable|date',
             'address'  => 'nullable|string|max:255',
             'avatar'   => 'nullable|image|max:5120', // 5MB
@@ -352,11 +352,22 @@ class UserController extends Controller
 
         // 6️⃣ Trả về kết quả JSON
         return response()->json([
-            'status'     => 'success',
-            'message'    => 'Cập nhật thông tin thành công',
-            'data'       => $user->fresh(),
-            'avatar_url' => $user->image,
-        ], 200);
+        'status'     => 'success',
+        'message'    => 'Cập nhật thông tin thành công',
+        'user'       => [
+            'id'          => $user->id,
+            'name'        => $user->name,
+            'email'       => $user->email,
+            'phone'       => $user->phone,
+            'role'        => $user->role,
+            'gender'      => $user->gender,
+            'birth'       => $user->birth,
+            'address'    => $user->address,
+            'avatar_url'  => $user->image, // hoặc lấy từ bảng images nếu cần
+            'created_at'  => $user->created_at,
+            'updated_at'  => $user->updated_at,
+        ]
+], 200);
     }
 
     public function uploadAvatar(Request $request, $id)
