@@ -62,4 +62,24 @@ class User extends Authenticatable
     {
         $this->notify(new Customresetpassword($token));
     }
+    protected static function boot()
+    {
+        parent::boot();
+
+        // Khi user được update, tự động update tất cả comments
+        static::updated(function($user) {
+            // Kiểm tra nếu name hoặc avatar thay đổi
+            if ($user->isDirty(['name', 'avatar'])) {
+                // Update tất cả comments của user này
+                \App\Models\Comment::where('userId', $user->id)
+                    ->update([
+                        'user_name' => $user->name,
+                        'user_avatar' => $user->avatar
+                    ]);
+
+                // Có thể log lại để debug
+                \Log::info("Updated comments for user {$user->id} with new name: {$user->name}");
+            }
+        });
+    }
 }

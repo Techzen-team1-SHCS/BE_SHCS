@@ -104,27 +104,11 @@ class UserController extends Controller
     public function show($id)
 {
     try {
-        // 🔍 1️⃣ Tìm user theo ID
+
         $user = User::findOrFail($id);
-
-        // 🔗 2️⃣ Lấy avatar từ bảng images
-        $avatarUrl = Image::where('reference_id', $user->id)
-            ->where('type', 'avatar')
-            ->value('url');
-
-        // ✅ 3️⃣ Trả về JSON
         return response()->json([
             'status' => 200,
-            'user' => [
-                'id'          => $user->id,
-                'name'        => $user->name,
-                'email'       => $user->email,
-                'phone'       => $user->phone,
-                'role'        => $user->role,
-                'avatar_url'  => $avatarUrl,
-                'created_at'  => $user->created_at,
-                'updated_at'  => $user->updated_at,
-            ]
+            'data' => $user
         ], 200);
 
     } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {

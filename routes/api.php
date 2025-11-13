@@ -54,6 +54,7 @@ Route::group(['prefix' => 'auth'], function () {
     //Comments
     Route::get('/comments', [CommentController::class, 'index']);
     Route::group(['middleware' => 'auth:api'], function () {
+       
         Route::post('/logout',[UserController::class,'logout']);
         Route::post('/user/update/{id}',[UserController::class,'update']);
         Route::post('/user/upload-avatar/{id}',[UserController::class,'uploadAvatar']);
@@ -79,6 +80,10 @@ Route::group(['prefix' => 'auth'], function () {
         Route::post('/booking/cancel/{id}', [BookingController::class, 'cancel']);
         // Tạo comment mới
         Route::post('/comments', [CommentController::class, 'store']);
+        // Sửa comment
+        Route::put('/comments/{id}', [CommentController::class, 'update']);
+        // Xóa comment
+        Route::delete('/comments/{id}', [CommentController::class, 'destroy']);
         //Payment
         Route::post('/vnpay/create-payment', [PaymentController::class, 'createPayment']);
         Route::get('/rooms/{id}/realtime', [BookingController::class, 'getRealtimeQuantity']);

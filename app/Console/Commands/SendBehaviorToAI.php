@@ -10,52 +10,81 @@ use Illuminate\Support\Facades\Log;
 
 class SendBehaviorToAI extends Command
 {
-    /**
-     * The name and signature of the console command.
-     *
-     * @var string
-     */
     protected $signature = 'ai:send-behaviors';
-    /**
-     * The console command description.
-     *
-     * @var string
-     */
-    protected $description='Gửi batch user behaviors sang Python AI server để phân tích';
-    /**
-     * Execute the console command.
-     */
-     public function handle()
-    {
-       $behaviors = UserBehavior::orderBy('timestamp', 'desc')->take(100)->get(); // lấy batch mới nhất
+    protected $description = 'Gửi batch user behaviors sang Python AI server để phân tích';
 
+    public function handle()
+    {
+        // 1. Lấy batch hành vi mới nhất
+        $behaviors = UserBehavior::orderByDesc('timestamp')->take(100)->get();
         if ($behaviors->isEmpty()) {
-            $this->info("Không có dữ liệu để gửi.");
+            $this->info('Không có dữ liệu để gửi.');
             return;
         }
 
+        // 2. Chuẩn bị dữ liệu đúng format API yêu cầu
+        $payload = $behaviors->map(function ($behavior) {
+            return [
+                'user_id'    => $behavior->user_id,
+                'item_id'    => $behavior->item_id,
+                'action_type'=> $behavior->action_type,   // click | like | share | booking
+                'timestamp'  => (float) $behavior->timestamp,
+            ];
+        })->values()->toArray();
+
         try {
-            $response = Http::timeout(10)->post('http://127.0.0.1:5000/analyze', [
-                'logs' => $behaviors,
-            ]);
-
-            if ($response->successful()) {
-                $result = $response->json();
-                foreach ($result['recommendations'] as $rec) {
-                    Recommendation::updateOrCreate(
-                        ['user_id' => $rec['user_id']],
-                        ['data' => json_encode($rec['data'])]
-                    );
-                }
-
-                Log::info("AI recommendations saved successfully.");
-                $this->info("Đã gửi thành công & lưu kết quả gợi ý.");
-            } else {
-                Log::error("AI server không phản hồi hợp lệ.");
+            // Nếu API_KEY được cấu hình, thêm header Authorization
+            $headers = [];
+            $apiKey = config('services.recbole.api_key'); // ví dụ lấy từ config
+            if (!empty($apiKey)) {
+                $headers['Authorization'] = 'Bearer ' . $apiKey;
             }
 
-        } catch (\Exception $e) {
-            Log::error("Lỗi khi gửi dữ liệu sang AI: ".$e->getMessage());
+            // 3. Gửi batch hành vi sang AI (POST /user_actions_batch)
+            $response = Http::timeout(10)
+                ->withHeaders($headers)
+                ->post('http://192.168.2.70:5000/user_actions_batch', $payload);
+
+            if (!$response->successful()) {
+                $this->error('Gửi user_actions_batch thất bại: ' . $response->body());
+                Log::error('AI server trả lỗi khi nhận hành vi', ['status' => $response->status(), 'body' => $response->body()]);
+                return;
+            }
+
+            $this->info('Đã gửi hành vi thành công.');
+
+            // 4. Với mỗi user trong batch, gọi API lấy recommendations và lưu
+            $uniqueUserIds = $behaviors->pluck('user_id')->unique();
+
+            foreach ($uniqueUserIds as $userId) {
+                $recommendationRes = Http::timeout(10)
+                    ->withHeaders($headers)
+                    ->get("http://192.168.2.70:5000/recommendations/{$userId}", [
+                        'top_k' => 10,
+                    ]);
+
+                if (!$recommendationRes->successful()) {
+                    $this->warn("Không lấy được recommendation cho user {$userId}: " . $recommendationRes->body());
+                    Log::warning('Lỗi lấy recommendation', ['user_id' => $userId, 'status' => $recommendationRes->status(), 'body' => $recommendationRes->body()]);
+                    continue;
+                }
+
+                $data = $recommendationRes->json();
+                Recommendation::updateOrCreate(
+                    ['user_id' => $userId],
+                    [
+                        'data'          => json_encode($data['recommendations'] ?? []),
+                        'model_version' => $data['model_version'] ?? null,
+                        'top_k'         => $data['top_k'] ?? 0,
+                    ]
+                );
+            }
+
+            Log::info('AI recommendations saved successfully.');
+            $this->info('Đã lưu gợi ý từ AI.');
+        } catch (\Throwable $e) {
+            Log::error('Lỗi khi gửi dữ liệu sang AI', ['exception' => $e]);
+            $this->error('Lỗi khi gọi AI: ' . $e->getMessage());
         }
     }
 }
