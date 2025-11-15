@@ -13,7 +13,9 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
+        $schedule->command('app:auto-update-bookings')->everyFiveMinutes();
         $schedule->command('ai:send-behaviors')->everyTenSeconds();
+
     }
 
     /**
