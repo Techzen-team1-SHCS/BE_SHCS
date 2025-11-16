@@ -9,7 +9,7 @@ use App\Http\Controllers\Api\RecommendationController;
 use App\Http\Controllers\Api\RoomController;
 use App\Http\Controllers\Api\UserBehaviorController;
 use App\Http\Controllers\Api\UserController;
-
+use App\Http\Controllers\Api\WishListController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -54,7 +54,7 @@ Route::group(['prefix' => 'auth'], function () {
     //Comments
     Route::get('/comments', [CommentController::class, 'index']);
     Route::group(['middleware' => 'auth:api'], function () {
-       
+
         Route::post('/logout',[UserController::class,'logout']);
         Route::post('/user/update/{id}',[UserController::class,'update']);
         Route::post('/user/upload-avatar/{id}',[UserController::class,'uploadAvatar']);
@@ -87,5 +87,10 @@ Route::group(['prefix' => 'auth'], function () {
         //Payment
         Route::post('/vnpay/create-payment', [PaymentController::class, 'createPayment']);
         Route::get('/rooms/{id}/realtime', [BookingController::class, 'getRealtimeQuantity']);
+        //WishList
+        Route::get('/wishlist',[WishListController::class,'index']);
+        Route::get('/Mywishlist',[WishListController::class,'show']);
+        Route::post('/wishlist',[WishListController::class,'store']);
+        Route::delete('/wishlist/{id}',[WishListController::class,'destroy']);
     });
 });
