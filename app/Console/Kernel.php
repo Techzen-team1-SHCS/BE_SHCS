@@ -15,6 +15,7 @@ class Kernel extends ConsoleKernel
     {
         $schedule->command('app:auto-update-bookings')->everyFiveMinutes();
         $schedule->command('app:send-pre-checkin-email')->dailyAt('08:00');
+        $schedule->command('app:process-cancelled-bookings')->everyTwoMinutes();
     }
 
     /**

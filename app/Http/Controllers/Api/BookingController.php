@@ -6,12 +6,14 @@ use App\Events\BookingCreated;
 use App\Events\RoomQuantityUpdated;
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
+use App\Models\Payment;
 use App\Models\Room;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Laravel\Reverb\Loggers\Log;
 
 class BookingController extends Controller
 {
@@ -163,7 +165,7 @@ class BookingController extends Controller
         DB::beginTransaction();
 
         try {
-            $booking = Booking::with('room')->find($id);
+            $booking = Booking::with('room', 'user')->find($id);
 
             if (!$booking) {
                 return response()->json([
@@ -179,59 +181,75 @@ class BookingController extends Controller
                 ], 400);
             }
 
-            // 🕒 Tính toán chính sách hủy
-            $checkIn = Carbon::parse($booking->check_in);
             $now = Carbon::now();
-            $cancelFreeDays = $booking->cancel_free_days ?? 3; // default 7 ngày
-            $freeUntil = $checkIn->copy()->subDays($cancelFreeDays)->endOfDay();
+            $checkIn = Carbon::parse($booking->check_in);
+            $cancelFreeDays = $booking->cancel_free_days ?? 3;
 
-            $cancelFee = 0;
-            $isFree = true;
+            $diffDays = $now->diffInDays($checkIn, false); // số ngày từ hôm nay tới check-in
 
-            // Nếu hủy sau thời hạn miễn phí
-            if ($now->greaterThan($freeUntil)) {
+            // ✅ Tính phí hủy
+            if ($diffDays > $cancelFreeDays) {
+                // Hoàn tiền 100%
+                $cancelFee = 0;
+                $refundAmount = $booking->total_price;
+                $isFree = true;
+            } elseif ($diffDays > 0 && $diffDays <= $cancelFreeDays) {
+                // Hoàn tiền 50%
+                $cancelFee = round($booking->total_price * 0.5);
+                $refundAmount = $booking->total_price - $cancelFee;
                 $isFree = false;
-                // Phạt 1 đêm (tùy bạn, có thể thay = $booking->total_price)
-                $cancelFee = $booking->total_price / ($booking->nights ?? 1);
+            } else {
+                // Hủy sát ngày hoặc qua check-in: không hoàn tiền
+                $cancelFee = $booking->total_price;
+                $refundAmount = 0;
+                $isFree = false;
             }
 
-            // 🔒 LOCK room (giống code cũ)
-            $room = Room::where('id', $booking->room_id)
-                ->lockForUpdate()
-                ->first();
+            // 🔒 LOCK room để tránh trùng số lượng
+            $room = Room::where('id', $booking->room_id)->lockForUpdate()->first();
 
             // Khôi phục số lượng phòng
             $room->increment('quantity', $booking->quantity);
             $newQuantity = $room->fresh()->quantity;
 
-            // Cập nhật trạng thái booking + phí hủy
+            // Cập nhật booking
             $booking->update([
                 'status' => 'cancelled',
                 'cancel_fee' => $cancelFee,
-                'cancelled_at' => now()
+                'cancelled_at' => now(),
+                'payment_status' => $refundAmount > 0 ? 'refunded' : 'not_refunded'
             ]);
+
+            // Cập nhật ví user nếu có tiền hoàn
+            if ($refundAmount > 0 && $booking->user) {
+                $booking->user->wallet_balance += $refundAmount;
+                $booking->user->save();
+
+                Log::info("Booking #{$booking->id}: Refund $refundAmount VND added to user #{$booking->user->id} wallet");
+            }
 
             DB::commit();
 
-            // 📢 Broadcast realtime updates (giữ nguyên)
-            event(new RoomQuantityUpdated($room->id, $newQuantity, 'cancelled', $booking->id));
+            // Thông báo realtime / FE
+            // event(new BookingCancelled($booking)); // nếu có event
 
             return response()->json([
                 'success' => true,
                 'message' => $isFree
                     ? 'Hủy phòng thành công, không mất phí.'
-                    : 'Hủy phòng thành công, bị phạt ' . number_format($cancelFee, 0, ',', '.') . ' VND.',
+                    : 'Hủy phòng thành công, phí hủy: ' . number_format($cancelFee, 0, ',', '.') . ' VND.',
                 'data' => [
                     'booking' => $booking->load(['user', 'room']),
                     'cancel_fee' => $cancelFee,
+                    'refund_amount' => $refundAmount,
                     'is_free' => $isFree,
-                    'free_until' => $freeUntil->format('H:i d/m/Y'),
                     'available_quantity' => $newQuantity,
                 ]
             ]);
 
         } catch (\Exception $e) {
             DB::rollBack();
+            Log::error("Lỗi hủy booking #{$id}: " . $e->getMessage());
 
             return response()->json([
                 'success' => false,
@@ -240,6 +258,74 @@ class BookingController extends Controller
             ], 500);
         }
     }
+
+    public function processCancelledBookings()
+    {
+        $bookings = Booking::where('status', 'cancelled')
+                            ->where('payment_status', 'paid') // chỉ quan tâm booking đã thanh toán
+                            ->whereNull('cancel_fee') // chưa tính phí hủy
+                            ->get();
+
+        foreach ($bookings as $booking) {
+            try {
+                DB::beginTransaction();
+
+                $today = Carbon::now();
+                $checkIn = Carbon::parse($booking->check_in);
+                $diffDays = $today->diffInDays($checkIn, false); // số ngày từ hôm nay tới check-in
+
+                // Quy tắc hoàn tiền
+
+                $diffDays = $today->diffInDays($checkIn); // luôn dương
+
+                if ($diffDays > $booking->cancel_free_days) {
+                    // Hủy trước mốc miễn phí → full refund
+                    $cancelFee = 0;
+                    $refundAmount = $booking->total_price;
+                } elseif ($diffDays > 0 && $diffDays <= $booking->cancel_free_days) {
+                    // Hủy trong khoảng 3 ngày → 50%
+                    $cancelFee = round($booking->total_price * 0.5);
+                    $refundAmount = $booking->total_price - $cancelFee;
+                } else {
+                    // Sát ngày hoặc đã qua → 0%
+                    $cancelFee = $booking->total_price;
+                    $refundAmount = 0;
+                }
+                // Cập nhật booking
+                $booking->update([
+                    'cancel_fee' => $cancelFee,
+                    'payment_status' => $refundAmount > 0 ? 'refunded' : 'not_refunded',
+                ]);
+
+                // Cập nhật payment liên quan
+                $payment = Payment::where('booking_id', $booking->id)
+                                ->where('status', 'paid')
+                                ->first();
+                // --- Thêm ví nội bộ cho user ---
+                if ($refundAmount > 0) {
+                    $user = $booking->user;
+                    if ($user) {
+                        $user->wallet_balance += $refundAmount;
+                        $user->save();
+                        Log::info("Booking #{$booking->id}: Refund $refundAmount VND added to user #{$user->id} wallet");
+                    }
+                }
+
+                DB::commit();
+
+            } catch (\Exception $e) {
+                DB::rollBack();
+                Log::error("Lỗi xử lý hoàn tiền booking #{$booking->id}: " . $e->getMessage());
+            }
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Đã xử lý các booking hủy theo quy định'
+        ]);
+    }
+
+
 
       public function getRealtimeQuantity($id)
     {

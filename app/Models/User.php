@@ -9,6 +9,8 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Passport\HasApiTokens;
+use Laravel\Reverb\Loggers\Log;
+
 class User extends Authenticatable
 {
     use HasApiTokens, HasFactory, Notifiable;
@@ -27,7 +29,8 @@ class User extends Authenticatable
         'gender',
         'address',
         'birth',
-        'image'
+        'image',
+        'wallet_balance',
 
     ];
 
@@ -78,7 +81,7 @@ class User extends Authenticatable
                     ]);
 
                 // Có thể log lại để debug
-                \Log::info("Updated comments for user {$user->id} with new name: {$user->name}");
+                Log::info("Updated comments for user {$user->id} with new name: {$user->name}");
             }
         });
     }
