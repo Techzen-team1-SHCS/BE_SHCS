@@ -137,7 +137,7 @@ class BookingController extends Controller
             'check_in' => 'sometimes|date|after_or_equal:today',
             'check_out' => 'sometimes|date|after:check_in',
             'total_amount' => 'sometimes|numeric|min:0',
-            'status' => ['sometimes', Rule::in(['pending','confirmed','cancelled'])]
+            'status' => ['sometimes', Rule::in(['pending','confirmed','cancelled','completed'])]
         ]);
         $booking->update($request->all());
         return response()->json([

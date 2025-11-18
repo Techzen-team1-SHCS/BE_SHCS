@@ -14,8 +14,7 @@ class Kernel extends ConsoleKernel
     protected function schedule(Schedule $schedule): void
     {
         $schedule->command('app:auto-update-bookings')->everyFiveMinutes();
-        $schedule->command('ai:send-behaviors')->everyTenSeconds();
-
+        $schedule->command('app:send-pre-checkin-email')->dailyAt('08:00');
     }
 
     /**
@@ -30,7 +29,7 @@ class Kernel extends ConsoleKernel
     }
     protected $commands = [
     \App\Console\Commands\MakeServiceCommand::class,
-
+    \App\Console\Commands\SendPreCheckinEmail::class,
 ];
 
 }

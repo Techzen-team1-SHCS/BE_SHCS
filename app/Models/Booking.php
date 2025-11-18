@@ -18,7 +18,9 @@ class Booking extends Model
         'check_out',
         'total_price',
         'status',
-        'quantity'
+        'quantity',
+        'payment_status',
+        'cancel_free_days'
     ];
 
     protected $casts = [
