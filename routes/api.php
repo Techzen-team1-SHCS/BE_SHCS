@@ -92,5 +92,9 @@ Route::group(['prefix' => 'auth'], function () {
         Route::get('/Mywishlist',[WishListController::class,'show']);
         Route::post('/wishlist',[WishListController::class,'store']);
         Route::delete('/wishlist/{id}',[WishListController::class,'destroy']);
+        //Notification
+        Route::get('/notifications', [NotificationController::class, 'index']);
+        Route::put('/notifications/{id}/read', [NotificationController::class, 'markAsRead']);
+        Route::put('/notifications/mark-all-read', [NotificationController::class, 'markAllAsRead']);
     });
 });
