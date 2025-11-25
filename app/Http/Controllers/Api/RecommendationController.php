@@ -8,66 +8,50 @@ use App\Models\Recommendation;
 use App\Models\UserBehavior;
 use App\Services\RecommendationService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 
 class RecommendationController extends Controller
 {
-    public function getRecommendations($user_id)
+    public function getRecommendations()
     {
+        $user_id = Auth::id();
         $rec = Recommendation::where('user_id', $user_id)->first();
 
         if ($rec) {
-            $data = json_decode($rec->data, true);
+            // AI trả về dạng chuỗi JSON: "[92,428,1,...]"
+            $hotelIds = json_decode($rec->data, true);
 
-            // Lấy danh sách hotel_id từ AI
-            $hotelIds = collect($data)->pluck('hotel_id')->toArray();
+            // Nếu decode lỗi hoặc AI trả về rỗng
+            if (!is_array($hotelIds) || empty($hotelIds)) {
+                return response()->json([
+                    'source' => 'AI',
+                    'data' => []
+                ]);
+            }
 
-            // Lấy thông tin khách sạn kèm hình ảnh
+            // Lấy danh sách khách sạn theo ID
             $hotels = Hotel::whereIn('id', $hotelIds)
                 ->with('images')
                 ->get();
 
-            // Giữ thứ tự giống AI trả về
+            // Giữ đúng thứ tự mà AI trả về
             $sortedHotels = $hotels->sortBy(function ($hotel) use ($hotelIds) {
                 return array_search($hotel->id, $hotelIds);
             })->values();
 
+            // Trả về danh sách khách sạn
             return response()->json([
                 'source' => 'AI',
                 'data' => $sortedHotels
             ]);
         }
-
-        // fallback top hotels
-        $recentHotelIds = UserBehavior::where('user_id', $user_id)
-        ->orderBy('timestamp', 'desc')
-        ->pluck('hotel_id')
-        ->unique()
-        ->take(5)
-        ->values()
-        ->toArray();
-
-
-        if (empty($recentHotelIds)) {
+        if (!$user_id) {
             $hotels = Hotel::with('images')
                 ->orderBy('hotel_class', 'desc') // sắp xếp từ cao xuống thấp
                 ->take(5)
                 ->get();
-
-            return response()->json([
-                'source' => 'default',
-                'data' => $hotels
-            ]);
         }
-
-        // Lấy danh sách hotel tương ứng theo ID
-        $hotels = Hotel::whereIn('id', $recentHotelIds)
-        ->with('images')
-        ->get();
-        $hotels->transform(function ($hotel) {
-            $hotel->price_formatted = number_format($hotel->price, 0, ',', '.');
-            return $hotel;
-        });
         return response()->json([
             'source' => 'default',
             'data' => $hotels

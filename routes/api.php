@@ -69,7 +69,7 @@ Route::group(['prefix' => 'auth'], function () {
         Route::put('/room/{id}',[RoomController::class,'update']);
         Route::delete('/room/{id}',[RoomController::class,'destroy']);
         // Recommendation
-        Route::get('/recommendations/{user_id}', [RecommendationController::class, 'getRecommendations']);
+        Route::get('/recommendations', [RecommendationController::class, 'getRecommendations']);
         //Booking
         Route::get('/booking',[BookingController::class,'index']);
         Route::get('/booking/{id}',[BookingController::class,'show']);
