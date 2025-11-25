@@ -14,12 +14,12 @@ class NotificationController extends Controller
     {
         $userId = Auth::id();
         $notifications = Notification::where('user_id', $userId)
-                                     ->orderBy('created_at', 'desc')
-                                     ->get();
+            ->orderBy('created_at', 'desc')
+            ->get();
 
         return response()->json([
             'status' => 'success',
-            'notifications' => $notifications
+            'notifications' => $notifications,
         ]);
     }
 

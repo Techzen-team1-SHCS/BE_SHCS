@@ -23,6 +23,7 @@ class UserBehavior extends Model
 
     protected $casts = [
         'metadata' => 'array',
+        'timestamp' => 'datetime',
     ];
 
     // Quan hệ với user

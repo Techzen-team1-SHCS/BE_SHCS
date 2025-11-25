@@ -6,6 +6,7 @@ use App\Events\BookingCreated;
 use App\Events\RoomQuantityUpdated;
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
+use App\Models\Notification;
 use App\Models\Payment;
 use App\Models\Room;
 use Carbon\Carbon;
@@ -14,6 +15,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Laravel\Reverb\Loggers\Log;
+use App\Helpers\NotificationHelper;
 
 class BookingController extends Controller
 {
@@ -106,7 +108,16 @@ class BookingController extends Controller
                 'total_price' => $totalPrice,
                 'status' => 'pending'
             ]);
-
+             if ($booking) {
+                NotificationHelper::send(
+                    $booking->user_id,
+                    'booking',
+                    'Đặt phòng thành công',
+                    "Booking #{$booking->id} của bạn đã được đặt thành công với tổng giá "
+                    . number_format($booking->total_price, 0, ',', '.') . " VND.",
+                    ['booking_id' => $booking->id]
+                );
+            }
             // Giảm số lượng phòng
             $room->decrement('quantity', $request->quantity);
             $newQuantity = $room->fresh()->quantity; // Lấy giá trị mới nhất

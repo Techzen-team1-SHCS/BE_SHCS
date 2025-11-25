@@ -85,6 +85,7 @@ Route::group(['prefix' => 'auth'], function () {
         // Xóa comment
         Route::delete('/comments/{id}', [CommentController::class, 'destroy']);
         //Payment
+        Route::get('/payments', [PaymentController::class, 'index']);
         Route::post('/vnpay/create-payment', [PaymentController::class, 'createPayment']);
         Route::get('/rooms/{id}/realtime', [BookingController::class, 'getRealtimeQuantity']);
         //WishList

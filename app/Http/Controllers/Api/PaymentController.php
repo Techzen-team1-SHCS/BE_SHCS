@@ -9,6 +9,7 @@ use App\Models\Booking;
 use App\Models\Payment;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
@@ -79,6 +80,7 @@ class PaymentController extends Controller
         $vnp_Url = $this->vnp_Url . "?" . $query . "vnp_SecureHash=" . $vnpSecureHash;
         // Tạo record Payment
         Payment::create([
+            'user_id'=> Auth::id(),
             'booking_id' => $booking->id,
             'amount' => $booking->total_price,
             'status' => 'pending',
@@ -233,6 +235,12 @@ class PaymentController extends Controller
             ], 500);
         }
     }
-
-
+    public function index(){
+        $user_id=Auth::id();
+        $payments = Payment::where('user_id', $user_id)->orderBy('created_at', 'desc')->get();
+        return response()->json([
+            'status' => 'success',
+            'data' => $payments,
+        ]);
+    }
 }

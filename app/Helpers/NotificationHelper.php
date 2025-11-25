@@ -11,13 +11,14 @@ class NotificationHelper
     /**
      * Tạo notification và broadcast realtime
      */
-    public static function send($userId, $type, $title, $message)
+    public static function send($userId, $type, $title, $message,$data=null)
     {
         $notification = Notification::create([
-            'user_id' => $userId,
-            'type' => $type,
-            'title' => $title,
-            'message' => $message,
+        'user_id' => $userId,
+        'type' => $type,
+        'title' => $title,
+        'message' => $message,
+        'data' => $data ? json_encode($data) : null,
         ]);
 
         // Broadcast event theo loại
@@ -25,7 +26,9 @@ class NotificationHelper
             case 'payment':
                 broadcast(new NotificationSuccess($notification));
                 break;
-            // có thể thêm các case khác: cancel, refund, promotion...
+            case 'booking':
+                broadcast(new NotificationSuccess($notification));
+                break;
         }
 
         return $notification;

@@ -26,12 +26,11 @@ class SendBehaviorToAI extends Command
         $payload = $behaviors->map(function ($behavior) {
             return [
                 'user_id'    => $behavior->user_id,
-                'item_id'    => $behavior->item_id,
-                'action_type'=> $behavior->action_type,   // click | like | share | booking
-                'timestamp'  => (float) $behavior->timestamp,
+                'item_id'    => $behavior->hotel_id,
+                'action_type'=> $behavior->action,   // click | like | share | booking
+                'timestamp' => (float) strtotime($behavior->timestamp),
             ];
         })->values()->toArray();
-
         try {
             // Nếu API_KEY được cấu hình, thêm header Authorization
             $headers = [];
@@ -43,7 +42,7 @@ class SendBehaviorToAI extends Command
             // 3. Gửi batch hành vi sang AI (POST /user_actions_batch)
             $response = Http::timeout(10)
                 ->withHeaders($headers)
-                ->post('http://192.168.2.70:5000/user_actions_batch', $payload);
+                ->post('http://192.168.234.110:5000/user_actions_batch', $payload);
 
             if (!$response->successful()) {
                 $this->error('Gửi user_actions_batch thất bại: ' . $response->body());
@@ -59,7 +58,7 @@ class SendBehaviorToAI extends Command
             foreach ($uniqueUserIds as $userId) {
                 $recommendationRes = Http::timeout(10)
                     ->withHeaders($headers)
-                    ->get("http://192.168.2.70:5000/recommendations/{$userId}", [
+                    ->get("http://192.168.234.110:5000/recommendations/{$userId}", [
                         'top_k' => 10,
                     ]);
 
