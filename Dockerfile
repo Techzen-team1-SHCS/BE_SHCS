@@ -18,6 +18,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libwebp-dev \
     libzip-dev \
     libonig-dev \
+    zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Cấu hình và build PHP extensions một cách riêng biệt
@@ -76,14 +77,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libwebp7 \
     libzip5 \
     libonig5 \
+    zlib1g \
     && rm -rf /var/lib/apt/lists/*
 
-# Cấu hình lại PHP extensions cho runtime stage
-RUN docker-php-ext-configure gd \
-    --with-freetype \
-    --with-jpeg \
-    --with-webp
-
+# Cài đặt PHP extensions mà không cần cấu hình lại GD (đã built sẵn)
 RUN docker-php-ext-install -j$(nproc) \
     pdo \
     pdo_mysql \
