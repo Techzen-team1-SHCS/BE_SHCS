@@ -74,7 +74,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libjpeg62-turbo \
     libfreetype6 \
     libwebp7 \
-    libzip4 \
+    libzip5 \
     libonig5 \
     && rm -rf /var/lib/apt/lists/*
 
