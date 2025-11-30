@@ -80,22 +80,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     zlib1g \
     && rm -rf /var/lib/apt/lists/*
 
-# Cài đặt PHP extensions mà không cần cấu hình lại GD (đã built sẵn)
-RUN docker-php-ext-install -j$(nproc) \
-    pdo \
-    pdo_mysql \
-    gd \
-    zip \
-    bcmath \
-    ctype \
-    fileinfo \
-    json \
-    mbstring \
-    tokenizer \
-    xml
-
 # Bật Apache modules
 RUN a2enmod rewrite headers
+
+# Copy PHP extensions từ builder stage
+COPY --from=builder /usr/local/lib/php/extensions /usr/local/lib/php/extensions
+COPY --from=builder /usr/local/etc/php/conf.d /usr/local/etc/php/conf.d
 
 # Copy code từ builder
 COPY --from=builder --chown=www-data:www-data /var/www/html /var/www/html
@@ -106,9 +96,7 @@ COPY ./docker/vhost.conf /etc/apache2/sites-available/000-default.conf
 # Tạo thư mục storage, cấp quyền
 RUN mkdir -p /var/www/html/storage/logs \
     && mkdir -p /var/www/html/storage/app/public \
-    && chown -R www-data:www-data /var/www/html/storage
-
-# Configure PHP uploads
+    && chown -R www-data:www-data /var/www/html/storage# Configure PHP uploads
 RUN echo "upload_max_filesize = 100M" >> /usr/local/etc/php/conf.d/uploads.ini \
     && echo "post_max_size = 100M" >> /usr/local/etc/php/conf.d/uploads.ini
 
