@@ -29,12 +29,15 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg && \
 # Cài Composer
 COPY --from=composer:2.7 /usr/bin/composer /usr/bin/composer
 
+# Copy toàn bộ source code trước
+COPY . .
+
 # Copy composer files và cài dependencies
 COPY composer.json composer.lock ./
-RUN composer install --no-dev --no-interaction --prefer-dist
+RUN composer install --no-dev --no-interaction --prefer-dist --no-scripts
 
-# Copy toàn bộ source code
-COPY . .
+# Chạy post-install scripts sau khi artisan đã có
+RUN php artisan package:discover --ansi
 
 # Cấp quyền cho Laravel
 RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
