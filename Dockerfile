@@ -62,40 +62,26 @@ FROM php:8.2-apache
 
 WORKDIR /var/www/html
 
-# Cài dependencies runtime (chỉ runtime, đủ để chạy PHP extensions)
+# Cài runtime dependencies (không cần dev tools)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpng-dev \
     libjpeg-dev \
     libfreetype6-dev \
     libwebp-dev \
-    pkg-config \
     libzip-dev \
     libonig-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Cấu hình PHP extensions giống builder
-RUN docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp \
-    && docker-php-ext-install -j$(nproc) \
-        pdo \
-        pdo_mysql \
-        gd \
-        zip \
-        bcmath \
-        ctype \
-        fileinfo \
-        json \
-        mbstring \
-        tokenizer \
-        xml
-
 # Bật Apache modules
 RUN a2enmod rewrite headers
 
+# Copy code + PHP extensions đã build từ builder
+COPY --from=builder --chown=www-data:www-data /var/www/html /var/www/html
+COPY --from=builder /usr/local/lib/php/extensions/no-debug-non-zts-20220829/ \
+                     /usr/local/lib/php/extensions/no-debug-non-zts-20220829/
+
 # Copy cấu hình Apache
 COPY ./docker/vhost.conf /etc/apache2/sites-available/000-default.conf
-
-# Copy code từ builder stage
-COPY --from=builder --chown=www-data:www-data /var/www/html /var/www/html
 
 # Tạo thư mục storage, cấp quyền
 RUN mkdir -p /var/www/html/storage/logs \
@@ -106,10 +92,5 @@ RUN mkdir -p /var/www/html/storage/logs \
 RUN echo "upload_max_filesize = 100M" >> /usr/local/etc/php/conf.d/uploads.ini \
     && echo "post_max_size = 100M" >> /usr/local/etc/php/conf.d/uploads.ini
 
-# Healthcheck
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost/health || exit 1
-
 EXPOSE 80
-
 CMD ["apache2-foreground"]
