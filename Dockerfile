@@ -11,29 +11,35 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     unzip \
     curl \
+    build-essential \
     libpng-dev \
-    libjpeg-dev \
+    libjpeg62-turbo-dev \
     libfreetype6-dev \
     libwebp-dev \
-    pkg-config \
     libzip-dev \
     libonig-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Cấu hình và build PHP extensions
-RUN docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp \
-    && docker-php-ext-install -j$(nproc) \
-        pdo \
-        pdo_mysql \
-        gd \
-        zip \
-        bcmath \
-        ctype \
-        fileinfo \
-        json \
-        mbstring \
-        tokenizer \
-        xml
+# Cấu hình và build PHP extensions một cách riêng biệt
+RUN docker-php-ext-configure gd \
+    --with-freetype \
+    --with-jpeg \
+    --with-webp
+
+RUN docker-php-ext-install -j$(nproc) \
+    pdo \
+    pdo_mysql \
+    gd
+
+RUN docker-php-ext-install -j$(nproc) \
+    zip \
+    bcmath \
+    ctype \
+    fileinfo \
+    json \
+    mbstring \
+    tokenizer \
+    xml
 
 # Cài Composer
 COPY --from=composer:2.7 /usr/bin/composer /usr/bin/composer
@@ -64,21 +70,38 @@ WORKDIR /var/www/html
 
 # Cài runtime dependencies (không cần dev tools)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libpng-dev \
-    libjpeg-dev \
-    libfreetype6-dev \
-    libwebp-dev \
-    libzip-dev \
-    libonig-dev \
+    libpng6 \
+    libjpeg62-turbo \
+    libfreetype6 \
+    libwebp7 \
+    libzip4 \
+    libonig5 \
     && rm -rf /var/lib/apt/lists/*
+
+# Cấu hình lại PHP extensions cho runtime stage
+RUN docker-php-ext-configure gd \
+    --with-freetype \
+    --with-jpeg \
+    --with-webp
+
+RUN docker-php-ext-install -j$(nproc) \
+    pdo \
+    pdo_mysql \
+    gd \
+    zip \
+    bcmath \
+    ctype \
+    fileinfo \
+    json \
+    mbstring \
+    tokenizer \
+    xml
 
 # Bật Apache modules
 RUN a2enmod rewrite headers
 
-# Copy code + PHP extensions đã build từ builder
+# Copy code từ builder
 COPY --from=builder --chown=www-data:www-data /var/www/html /var/www/html
-COPY --from=builder /usr/local/lib/php/extensions/no-debug-non-zts-20220829/ \
-                     /usr/local/lib/php/extensions/no-debug-non-zts-20220829/
 
 # Copy cấu hình Apache
 COPY ./docker/vhost.conf /etc/apache2/sites-available/000-default.conf
