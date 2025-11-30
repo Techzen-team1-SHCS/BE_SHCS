@@ -1,18 +1,40 @@
+# ===========================
+# Stage 1: Builder
+# ===========================
+FROM php:8.2-apache AS builder
+
+WORKDIR /var/www/html
+
+# Cài đặt dependencies
+RUN apt-get update && apt-get install -y git unzip curl libzip-dev libonig-dev \
+    && docker-php-ext-install pdo pdo_mysql mbstring zip \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy source code và composer install
+COPY composer.json composer.lock ./
+RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+RUN composer install --no-dev --no-interaction --prefer-dist
+
+COPY . .
+
+# Set quyền storage
+RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
+
+# ===========================
+# Stage 2: Runtime
+# ===========================
 FROM php:8.2-apache
 
 WORKDIR /var/www/html
 
 # Runtime dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends libonig-dev \
-    && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y libonig-dev && rm -rf /var/lib/apt/lists/*
 
 # PHP extensions runtime
-RUN docker-php-ext-install -j$(nproc) pdo pdo_mysql mbstring
+RUN docker-php-ext-install pdo pdo_mysql mbstring
 
 # Enable Apache modules
 RUN a2enmod rewrite
-
-# Set ServerName để xóa cảnh báo
 RUN echo "ServerName localhost" >> /etc/apache2/apache2.conf
 
 # Copy code từ builder
@@ -30,5 +52,4 @@ RUN echo "upload_max_filesize = 100M" >> /usr/local/etc/php/conf.d/uploads.ini &
 
 EXPOSE 80
 
-# CMD chạy Apache foreground
 CMD ["apache2-foreground"]
