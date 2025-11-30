@@ -16,11 +16,14 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
 # Composer
 COPY --from=composer:2.7 /usr/bin/composer /usr/bin/composer
 
-# Copy composer files và cài dependencies
+# Copy composer files và cài dependencies (bỏ qua post-install scripts)
 COPY composer.json composer.lock ./
-RUN composer install --no-dev --no-interaction --prefer-dist
+RUN composer install --no-dev --no-interaction --prefer-dist --no-scripts
 
 COPY . .
+
+# Chạy post-install scripts sau khi artisan đã được copy
+RUN composer run-script post-autoload-dump
 
 # Set quyền storage
 RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
