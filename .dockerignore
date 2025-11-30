@@ -16,7 +16,7 @@ vendor
 tests
 phpunit.xml
 coverage
-.env
+
 .env.*.php
 .github
 docker-compose.yml
