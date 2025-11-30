@@ -196,32 +196,39 @@ class BookingController extends Controller
             $checkIn = Carbon::parse($booking->check_in);
             $cancelFreeDays = $booking->cancel_free_days ?? 3;
 
-            $diffDays = $now->diffInDays($checkIn, false); // số ngày từ hôm nay tới check-in
+            // Tính số ngày đến check-in
+            $diffDays = $now->diffInDays($checkIn, false);
 
-            // ✅ Tính phí hủy
+            // Nếu hôm nay là ngày check-in -> diffDays = 0
+            if ($now->isSameDay($checkIn)) {
+                $diffDays = 0;
+            }
+
+            // Tính phí
             if ($diffDays > $cancelFreeDays) {
-                // Hoàn tiền 100%
                 $cancelFee = 0;
                 $refundAmount = $booking->total_price;
                 $isFree = true;
             } elseif ($diffDays > 0 && $diffDays <= $cancelFreeDays) {
-                // Hoàn tiền 50%
                 $cancelFee = round($booking->total_price * 0.5);
                 $refundAmount = $booking->total_price - $cancelFee;
                 $isFree = false;
             } else {
-                // Hủy sát ngày hoặc qua check-in: không hoàn tiền
+                // Đúng ngày check-in hoặc qua ngày -> Không hoàn tiền
                 $cancelFee = $booking->total_price;
                 $refundAmount = 0;
                 $isFree = false;
             }
 
-            // 🔒 LOCK room để tránh trùng số lượng
+            // LOCK room
             $room = Room::where('id', $booking->room_id)->lockForUpdate()->first();
+            if (!$room) {
+                throw new \Exception("Room not found for booking #{$booking->id}");
+            }
 
-            // Khôi phục số lượng phòng
-            $room->increment('quantity', $booking->quantity);
-            $newQuantity = $room->fresh()->quantity;
+            // Cập nhật số lượng phòng
+            $newQuantity = max($room->quantity + $booking->quantity, 0);
+            $room->update(['quantity' => $newQuantity]);
 
             // Cập nhật booking
             $booking->update([
@@ -231,19 +238,13 @@ class BookingController extends Controller
                 'payment_status' => $refundAmount > 0 ? 'refunded' : 'not_refunded'
             ]);
 
-            // Cập nhật ví user nếu có tiền hoàn
+            // Refund nếu có
             if ($refundAmount > 0 && $booking->user) {
                 $booking->user->wallet_balance += $refundAmount;
                 $booking->user->save();
-
-                Log::info("Booking #{$booking->id}: Refund $refundAmount VND added to user #{$booking->user->id} wallet");
             }
 
             DB::commit();
-
-            // Thông báo realtime / FE
-            // event(new BookingCancelled($booking)); // nếu có event
-
             return response()->json([
                 'success' => true,
                 'message' => $isFree
@@ -269,6 +270,7 @@ class BookingController extends Controller
             ], 500);
         }
     }
+
 
     public function processCancelledBookings()
     {
