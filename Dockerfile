@@ -42,17 +42,15 @@ FROM php:8.2-apache
 
 WORKDIR /var/www/html
 
-# Cài runtime dependencies
+# Cài runtime dependencies (chỉ cần libonig-dev, không cần libzip-dev)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libzip5 \
-    libonig5 \
+    libonig-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Cài PHP extensions cần thiết
+# Cài PHP extensions cần thiết (zip đã cài ở builder)
 RUN docker-php-ext-install -j$(nproc) \
     pdo \
     pdo_mysql \
-    zip \
     mbstring
 
 # Bật Apache modules
