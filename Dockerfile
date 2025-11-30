@@ -5,14 +5,19 @@ FROM php:8.2-apache AS builder
 
 WORKDIR /var/www/html
 
-# Cài đặt dependencies
-RUN apt-get update && apt-get install -y git unzip curl libzip-dev libonig-dev \
-    && docker-php-ext-install pdo pdo_mysql mbstring zip \
+# Cài dependencies
+RUN apt-get update && apt-get install -y git unzip curl libzip-dev libonig-dev libpng-dev libjpeg-dev libfreetype6-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy source code và composer install
+# PHP extensions
+RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install -j$(nproc) pdo pdo_mysql mbstring zip gd
+
+# Composer
+COPY --from=composer:2.7 /usr/bin/composer /usr/bin/composer
+
+# Copy composer files và cài dependencies
 COPY composer.json composer.lock ./
-RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
 RUN composer install --no-dev --no-interaction --prefer-dist
 
 COPY . .
