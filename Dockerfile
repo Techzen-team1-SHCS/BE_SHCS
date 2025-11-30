@@ -70,7 +70,7 @@ WORKDIR /var/www/html
 
 # Cài runtime dependencies (không cần dev tools)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libpng6 \
+    libpng16-16 \
     libjpeg62-turbo \
     libfreetype6 \
     libwebp7 \
