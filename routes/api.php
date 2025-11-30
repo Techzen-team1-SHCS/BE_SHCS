@@ -53,6 +53,8 @@ Route::group(['prefix' => 'auth'], function () {
     Route::get('/vnpay/return', [PaymentController::class, 'vnpayReturn']);
     //Comments
     Route::get('/comments', [CommentController::class, 'index']);
+    //Booking
+    Route::get('/booking',[BookingController::class,'index']);
     Route::group(['middleware' => 'auth:api'], function () {
 
         Route::post('/logout',[UserController::class,'logout']);
@@ -71,7 +73,6 @@ Route::group(['prefix' => 'auth'], function () {
         // Recommendation
         Route::get('/recommendations', [RecommendationController::class, 'getRecommendations']);
         //Booking
-        Route::get('/booking',[BookingController::class,'index']);
         Route::get('/booking/{id}',[BookingController::class,'show']);
         Route::get('bookings/user',[BookingController::class,'getBookingUser']);
         Route::post('/booking',[BookingController::class,'store']);
