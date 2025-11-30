@@ -53,15 +53,16 @@ RUN chown -R www-data:www-data /var/www/html \
     && chmod -R 755 /var/www/html/bootstrap/cache
 
 # Stage 2: Runtime
+# Stage 2: Runtime
 FROM php:8.2-apache
 
 # Cài dependencies runtime
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libpng6 \
-    libjpeg62-turbo \
-    libfreetype6 \
-    libzip4 \
-    libonig5 \
+    libpng-dev \
+    libjpeg-dev \
+    libfreetype6-dev \
+    libzip-dev \
+    libonig-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Cấu hình PHP extensions
@@ -78,6 +79,7 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
     mbstring \
     tokenizer \
     xml
+
 
 # Bật Apache modules
 RUN a2enmod rewrite headers
