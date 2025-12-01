@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\RoomController;
 use App\Http\Controllers\Api\UserBehaviorController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\WishListController;
+use App\Http\Controllers\Api\SupportTicketController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -37,6 +38,7 @@ Route::group(['prefix' => 'auth'], function () {
     Route::post('/forgot-password', [UserController::class, 'sendResetLink']);
     Route::post('/reset-password', [UserController::class, 'reset']);
     Route::get('/user/{id}',[UserController::class,'show']);
+    Route::get('user',[UserController::class,'index']);
     //Hotel
     Route::get('hotels/{id}/same-style', [HotelController::class, 'sameStyle']);
     Route::get('hotels/{id}/same-province', [HotelController::class, 'sameProvince']);
@@ -55,6 +57,8 @@ Route::group(['prefix' => 'auth'], function () {
     Route::get('/comments', [CommentController::class, 'index']);
     //Booking
     Route::get('/booking',[BookingController::class,'index']);
+    //Ticket Support
+    Route::post('/support-tickets', [SupportTicketController::class, 'store']);
     Route::group(['middleware' => 'auth:api'], function () {
 
         Route::post('/logout',[UserController::class,'logout']);
@@ -95,8 +99,12 @@ Route::group(['prefix' => 'auth'], function () {
         Route::post('/wishlist',[WishListController::class,'store']);
         Route::delete('/wishlist/{id}',[WishListController::class,'destroy']);
         //Notification
+        Route::get('Allnotifications', [NotificationController::class, 'getAllAdmin']);
         Route::get('/notifications', [NotificationController::class, 'index']);
         Route::put('/notifications/{id}/read', [NotificationController::class, 'markAsRead']);
         Route::put('/notifications/mark-all-read', [NotificationController::class, 'markAllAsRead']);
+        //Support Ticket
+        Route::get('/support-tickets', [SupportTicketController::class, 'index']);
+        Route::get('/support-tickets/{id}', [SupportTicketController::class, 'show']);
     });
 });

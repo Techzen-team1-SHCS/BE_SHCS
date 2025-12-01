@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Helpers\NotificationHelper;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\LoginRequest;
 use App\Http\Requests\PasswordResetRequest;
@@ -41,6 +42,12 @@ class UserController extends Controller
             'phone'    => $validated['phone'] ?? '',
             'password' => Hash::make($validated['password']),
         ]);
+        NotificationHelper::send(
+            $user->id,
+            'Registration Successful',
+            'Đăng ký thành công',
+            "Chào mừng {$user->name} đã đăng ký thành công tài khoản."
+        );
 
         // 2️⃣ Upload avatar lên ImgBB nếu có
         $avatarUrl = '';
@@ -72,6 +79,7 @@ class UserController extends Controller
 
         }
         Mail::to($user->email)->send(new RegisterEmail($user));
+
         return response()->json([
             'status' => 'success',
             'data' => $user,
@@ -91,7 +99,7 @@ class UserController extends Controller
         }
             return response()->json([
                 'status'=>200,
-                'user'=>$users
+                'data'=>$users
             ],200);
         } catch (\Throwable $th) {
             return response()->json([

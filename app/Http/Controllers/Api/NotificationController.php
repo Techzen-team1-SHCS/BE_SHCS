@@ -22,6 +22,19 @@ class NotificationController extends Controller
             'notifications' => $notifications,
         ]);
     }
+    public function getAllAdmin(){
+        $notifications=Notification::all();
+        if($notifications->isEmpty()){
+            return response()->json([
+                'status'=>404,
+                'message'=>'Not found notification'
+            ]);
+        }
+        return response()->json([
+            'status'=>200,
+            'data'=>$notifications
+        ]);
+    }       
 
     // Mark 1 notification as read
     public function markAsRead(Request $request, $id)

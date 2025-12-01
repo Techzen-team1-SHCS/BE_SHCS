@@ -243,6 +243,17 @@ class BookingController extends Controller
                 $booking->user->wallet_balance += $refundAmount;
                 $booking->user->save();
             }
+            if($booking->status==='cancelled'){
+                NotificationHelper::send(
+                    $booking->user_id,
+                    'cancel_booking',
+                    'Hủy phòng thành công',
+                    "Booking #{$booking->id} của bạn đã được hủy thành công. Phí hủy: "
+                    . number_format($cancelFee, 0, ',', '.') . " VND. Số tiền hoàn lại: "
+                    . number_format($refundAmount, 0, ',', '.') . " VND.",
+                    ['booking_id' => $booking->id]
+                );
+            }
 
             DB::commit();
             return response()->json([
