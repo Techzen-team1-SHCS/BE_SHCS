@@ -20,7 +20,6 @@ class NotificationHelper
         'message' => $message,
         'data' => $data ? json_encode($data) : null,
         ]);
-
         // Broadcast event theo loại
         switch ($type) {
             case 'payment':
@@ -30,6 +29,12 @@ class NotificationHelper
                 broadcast(new NotificationSuccess($notification));
                 break;
             case 'cancel_booking':
+                broadcast(new NotificationSuccess($notification));
+                break;
+            case 'Registration Successful':
+                broadcast(new NotificationSuccess($notification));
+                break;
+            default:
                 broadcast(new NotificationSuccess($notification));
                 break;
         }
