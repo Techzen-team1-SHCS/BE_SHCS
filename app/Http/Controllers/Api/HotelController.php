@@ -22,7 +22,7 @@ class HotelController extends Controller
 {
     public function index(){
         try {
-            $hotels = Hotel::with(['styles', 'images'])->get();
+            $hotels = Hotel::with(['styles', 'images','rooms'])->get();
             return response()->json([
                 'status'=>200,
                 'content'=>$hotels

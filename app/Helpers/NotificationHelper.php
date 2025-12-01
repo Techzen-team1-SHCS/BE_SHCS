@@ -29,6 +29,9 @@ class NotificationHelper
             case 'booking':
                 broadcast(new NotificationSuccess($notification));
                 break;
+            case 'cancel_booking':
+                broadcast(new NotificationSuccess($notification));
+                break;
         }
 
         return $notification;

@@ -171,7 +171,7 @@ class PaymentController extends Controller
 
                 if ($booking) {
                     $booking->update([
-                        'status' => 'confirmed',
+                        'status' => 'completed',
                         'payment_status' => 'paid'
                     ]);
 
