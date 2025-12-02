@@ -44,7 +44,7 @@ class UserController extends Controller
         ]);
         NotificationHelper::send(
             $user->id,
-            'Registration Successful',
+            'Registration_Successful',
             'Đăng ký thành công',
             "Chào mừng {$user->name} đã đăng ký thành công tài khoản."
         );

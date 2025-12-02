@@ -16,6 +16,11 @@ class Hotel extends Model
     {
         return $this->hasMany(Room::class, 'hotel_id');
     }
+    public function bookings()
+    {
+        return $this->hasManyThrough(Booking::class, Room::class, 'hotel_id', 'room_id');
+    }
+
 
     // Một khách sạn có nhiều phong cách (qua bảng trung gian hotel_styles)
     public function styles()

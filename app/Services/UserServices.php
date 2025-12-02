@@ -29,7 +29,9 @@ class UserServices{
         if(!$user || !Hash::check($data['password'],$user->password)){
          return false;
         }
-
+        if ($user->is_blocked) {
+            return response()->json(['message' => 'Tài khoản của bạn đã bị chặn!'], 403);
+        }
         $tokenResult = $user->createToken('Personal Access Token');
         $accessToken = $tokenResult->accessToken;
         $token = $tokenResult->token;

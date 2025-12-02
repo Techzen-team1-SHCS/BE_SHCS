@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\BookingController;
 use App\Http\Controllers\Api\CommentController;
+use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\HotelController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\PaymentController;
@@ -106,5 +107,14 @@ Route::group(['prefix' => 'auth'], function () {
         //Support Ticket
         Route::get('/support-tickets', [SupportTicketController::class, 'index']);
         Route::get('/support-tickets/{id}', [SupportTicketController::class, 'show']);
+        //Block_user
+        Route::post('/users/{id}/block', [UserController::class, 'blockUser']);
+        Route::post('/users/{id}/unblock', [UserController::class, 'unblockUser']);
+        //Admin Dashboard
+        Route::get('/dashboard/revenue', [DashboardController::class, 'getRevenue']);
+        Route::get('/dashboard/by_month',[DashboardController::class,'getBookingsByMonth']);
+        Route::get('dashboard/bookings-chart', [DashboardController::class, 'getBookingsChart']);
+        Route::get('dashboard/topHotelChart',[DashboardController::class,'getTopHotelsByBookings']);
+        Route::get('dashboard/todayBooking',[DashboardController::class,'getTodayBooking']);
     });
 });
