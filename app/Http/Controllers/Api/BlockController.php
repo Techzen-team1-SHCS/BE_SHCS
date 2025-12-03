@@ -14,7 +14,7 @@ class BlockController extends Controller
             return response()->json(['message' => 'User not found'], 404);
         }
 
-        $user->is_blocked = true;
+        $user->is_blocked = 1;
         $user->save();
 
         return response()->json(['message' => 'User blocked successfully'], 200);
@@ -27,7 +27,7 @@ class BlockController extends Controller
             return response()->json(['message' => 'User not found'], 404);
         }
 
-        $user->is_blocked = false;
+        $user->is_blocked = 0;
         $user->save();
 
         return response()->json(['message' => 'User unblocked successfully'], 200);

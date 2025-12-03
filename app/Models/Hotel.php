@@ -10,7 +10,10 @@ class Hotel extends Model
     use HasFactory;
     protected $table='hotels';
     protected $fillable=[
-        'name','province','description','price','name_nearby_place','hotel_class','text'
+        'name','province','description','price','name_nearby_place','hotel_class','text','amenities'
+    ];
+    protected $casts = [
+        'amenities' => 'array',
     ];
     public function rooms()
     {
@@ -19,6 +22,10 @@ class Hotel extends Model
     public function bookings()
     {
         return $this->hasManyThrough(Booking::class, Room::class, 'hotel_id', 'room_id');
+    }
+    public function comments()
+    {
+        return $this->hasMany(Comment::class, 'maHotel');
     }
 
 

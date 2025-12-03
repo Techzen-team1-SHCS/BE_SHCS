@@ -25,25 +25,27 @@ class UserServices{
         return $this->user->create($data);
     }
     public function login(array $data){
-        $user=$this->user->findByEmail($data['email']);
-        if(!$user || !Hash::check($data['password'],$user->password)){
-         return false;
+        $user = $this->user->findByEmail($data['email']);
+
+        if (!$user || !Hash::check($data['password'], $user->password)) {
+            return 'invalid';
         }
-        if ($user->is_blocked) {
-            return response()->json(['message' => 'Tài khoản của bạn đã bị chặn!'], 403);
+
+        if ($user->is_blocked == 1) {
+            return 'blocked';
         }
+
         $tokenResult = $user->createToken('Personal Access Token');
-        $accessToken = $tokenResult->accessToken;
         $token = $tokenResult->token;
 
         return [
             'user' => $user,
-            'access_token' => $accessToken,
+            'access_token' => $tokenResult->accessToken,
             'token_type' => 'Bearer',
             'expires_at' => $token->expires_at,
         ];
-
     }
+
     public function resetPassword(string $email){
         $user=$this->user->findByEmail($email);
         if(!$user){

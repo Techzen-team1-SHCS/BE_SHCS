@@ -135,22 +135,29 @@ class UserController extends Controller
 }
 
 
-    public function login(LoginRequest $request) ///
+    public function login(LoginRequest $request)
     {
         $result = $this->user->login($request->validated());
 
-        if (!$result) {
+        if ($result === 'invalid') {
             return response()->json([
                 'status' => 401,
-                'error'  => 'Vui lòng kiểm tra lại mật khẩu'
+                'message' => 'Sai tài khoản hoặc mật khẩu'
             ], 401);
+        }
+
+        if ($result === 'blocked') {
+            return response()->json([
+                'status' => 403,
+                'message' => 'Tài khoản của bạn đã bị chặn!'
+            ], 403);
         }
 
         return response()->json([
             'status' => 200,
-            'message' => 'Login successful',
+            'message' => 'Đăng nhập thành công!',
             'data' => $result
-        ]);
+        ], 200);
     }
     public function logout(Request $request)
     {

@@ -4,9 +4,14 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
+use App\Models\Comment;
 use App\Models\Hotel;
+use App\Models\Room;
 use Carbon\Carbon;
+
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Laravel\Reverb\Loggers\Log;
 
 class DashboardController extends Controller
 {
@@ -147,13 +152,121 @@ class DashboardController extends Controller
 
         // Query bookings trong ngày hôm nay
         $bookings = Booking::whereBetween('created_at', [$today, $tomorrow])
-            ->with('room')  // nếu muốn join thông tin phòng
-            ->with('user')  // nếu muốn join thông tin user
+            ->with('room','room.hotel')
+            ->with('user')
             ->get();
 
         return response()->json([
             'status' => true,
             'data' => $bookings
+        ]);
+    }
+    public function getRoomStats()
+    {
+        $rooms = Room::select('id','room_type', 'hotel_id', 'quantity')
+            ->with(['hotel.comments', 'bookings'])
+            ->get()
+            ->groupBy('room_type')
+            ->map(function ($groupedRooms) {
+
+                $roomType = $groupedRooms->first()->room_type;
+
+                // Log thông tin groupedRooms
+                \Log::info("Grouped rooms for type {$roomType}: " . json_encode($groupedRooms->pluck('id')->toArray()));
+
+                // Tổng số bookings theo room_type
+                $totalBookings = $groupedRooms->sum(function ($room) {
+                    // Log info từng room
+                    \Log::info("Room {$room->id} ({$room->room_type}) bookings: " . json_encode([
+                        'bookings_count' => $room->bookings->count(),
+                        'bookings_quantity' => $room->bookings->sum('quantity'),
+                        'booking_ids' => $room->bookings->pluck('id')->toArray()
+                    ]));
+
+                    return $room->bookings->sum('quantity');
+                });
+
+                // Tổng số phòng theo room_type
+                $totalQuantity = $groupedRooms->sum('quantity');
+
+                // Occupancy Rate
+                $occupancyRate = $totalQuantity > 0
+                    ? round(($totalBookings / $totalQuantity) * 100) . '%'
+                    : '0%';
+
+                // Ratings lấy từ comment của khách sạn
+                $ratings = collect();
+                foreach ($groupedRooms as $room) {
+                    if ($room->hotel && $room->hotel->comments) {
+                        $ratings = $ratings->merge(
+                            $room->hotel->comments->pluck('rating')->filter()
+                        );
+                    }
+                }
+
+                $averageRating = $ratings->count() > 0
+                    ? round($ratings->avg(), 1)
+                    : 0;
+
+                return [
+                    'roomType' => $roomType,
+                    'totalBookings' => $totalBookings,
+                    'occupancyRate' => $occupancyRate,
+                    'averageRating' => $averageRating
+                ];
+            })
+            ->values();
+
+        \Log::info("Final room stats: " . json_encode($rooms));
+
+        return response()->json($rooms);
+    }
+    public function getDashboardStats()
+    {
+        // 1️⃣ Occupancy Rate
+        $occupied = Booking::whereDate('check_in', '<=', today())
+                           ->whereDate('check_out', '>=', today())
+                           ->sum('quantity');
+
+        $totalRooms = Room::sum('quantity');
+
+        $occupancyRate = $totalRooms > 0
+            ? round(($occupied / $totalRooms) * 100) . '%'
+            : '0%';
+
+        // 2️⃣ Pending Reservations
+        $pendingReservations = Booking::where('status', 'pending')->count();
+
+        // 3️⃣ Average Rating
+        $averageRating = round(Comment::avg('rating') ?? 0, 1);
+
+        // 4️⃣ Monthly Reservations (12 tháng)
+        $monthlyReservations = Booking::select(
+                                DB::raw('MONTH(check_in) as month'),
+                                DB::raw('COUNT(*) as total')
+                             )
+                             ->groupBy('month')
+                             ->orderBy('month')
+                             ->get()
+                             ->mapWithKeys(function ($item) {
+                                return [$item->month => $item->total];
+                             });
+
+        // 5️⃣ Guest Satisfaction
+        $totalReviews = Comment::count();
+        $guestSatisfaction = [
+            'excellent' => $totalReviews ? round(Comment::where('rating','>=',4.5)->count() / $totalReviews * 100) : 0,
+            'good'      => $totalReviews ? round(Comment::whereBetween('rating',[3,4.49])->count() / $totalReviews * 100) : 0,
+            'poor'      => $totalReviews ? round(Comment::where('rating','<',3)->count() / $totalReviews * 100) : 0,
+        ];
+
+        // 🔹 Return JSON
+        return response()->json([
+            'occupancyRate' => $occupancyRate,
+            'pendingReservations' => $pendingReservations,
+            'averageRating' => $averageRating,
+            'monthlyReservations' => $monthlyReservations,
+            'guestSatisfaction' => $guestSatisfaction,
         ]);
     }
 
