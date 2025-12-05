@@ -42,7 +42,7 @@ class SendBehaviorToAI extends Command
             // 3. Gửi batch hành vi sang AI (POST /user_actions_batch)
             $response = Http::timeout(10)
                 ->withHeaders($headers)
-                ->post('http://192.168.66.110:5000/user_actions_batch', $payload);
+                ->post('http://192.168.31.110:5000/user_actions_batch', $payload);
 
             if (!$response->successful()) {
                 $this->error('Gửi user_actions_batch thất bại: ' . $response->body());
@@ -58,10 +58,9 @@ class SendBehaviorToAI extends Command
             foreach ($uniqueUserIds as $userId) {
                 $recommendationRes = Http::timeout(10)
                     ->withHeaders($headers)
-                    ->get("http://192.168.66.110:5000/recommendations/{$userId}", [
+                    ->get("http://192.168.31.110:5000/recommendations/{$userId}", [
                         'top_k' => 10,
                     ]);
-
                 if (!$recommendationRes->successful()) {
                     $this->warn("Không lấy được recommendation cho user {$userId}: " . $recommendationRes->body());
                     Log::warning('Lỗi lấy recommendation', ['user_id' => $userId, 'status' => $recommendationRes->status(), 'body' => $recommendationRes->body()]);
@@ -77,6 +76,7 @@ class SendBehaviorToAI extends Command
                         'top_k'         => $data['top_k'] ?? 0,
                     ]
                 );
+                UserBehavior::where('user_id', $userId)->delete();
             }
 
             Log::info('AI recommendations saved successfully.');

@@ -12,9 +12,9 @@ class Hotel extends Model
     protected $fillable=[
         'name','province','description','price','name_nearby_place','hotel_class','text','amenities'
     ];
-    protected $casts = [
-        'amenities' => 'array',
-    ];
+    // protected $casts = [
+    //     'amenities' => 'array',
+    // ];
     public function rooms()
     {
         return $this->hasMany(Room::class, 'hotel_id');

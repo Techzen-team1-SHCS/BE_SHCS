@@ -282,7 +282,7 @@ class UserController extends Controller
         // 1️⃣ Validate dữ liệu
         $validated = $request->validate([
             'name'     => 'nullable|string|max:255',
-            'email'    => 'nullable|email|max:255',
+            'email'    => 'nullable|email|max:255|unique:users,email,' . $id,
             'phone'    => 'nullable|string|max:20',
             'password' => 'nullable|string|min:6',
             'gender'   => 'nullable|string|min:3',
