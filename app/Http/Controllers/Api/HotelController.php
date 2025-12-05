@@ -7,6 +7,7 @@ use App\Http\Requests\StoreHotelRequest;
 use App\Models\Hotel;
 use App\Models\Hotel_Style;
 use App\Models\Image;
+use App\Models\Room;
 use App\Models\Style;
 use CloudinaryLabs\CloudinaryLaravel\Facades\Cloudinary;
 use Illuminate\Http\Request;
@@ -95,9 +96,11 @@ class HotelController extends Controller
                     'error'=>'Không tìm thấy khách sạn nào'
                 ]);
             }
+            $totalRooms = Room::where('hotel_id', $id)->sum('quantity');
             return response()->json([
                 'status'=>200,
-                'data'=>$hotel
+                'data'=>$hotel,
+                'totalRooms'=>$totalRooms
             ],200);
         } catch (\Throwable $th) {
             return response()->json([

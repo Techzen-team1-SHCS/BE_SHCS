@@ -10,12 +10,24 @@ class Hotel extends Model
     use HasFactory;
     protected $table='hotels';
     protected $fillable=[
-        'name','province','description','price','name_nearby_place','hotel_class','text'
+        'name','province','description','price','name_nearby_place','hotel_class','text','amenities'
     ];
+    // protected $casts = [
+    //     'amenities' => 'array',
+    // ];
     public function rooms()
     {
         return $this->hasMany(Room::class, 'hotel_id');
     }
+    public function bookings()
+    {
+        return $this->hasManyThrough(Booking::class, Room::class, 'hotel_id', 'room_id');
+    }
+    public function comments()
+    {
+        return $this->hasMany(Comment::class, 'maHotel');
+    }
+
 
     // Một khách sạn có nhiều phong cách (qua bảng trung gian hotel_styles)
     public function styles()

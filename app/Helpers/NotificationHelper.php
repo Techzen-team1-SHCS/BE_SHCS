@@ -31,7 +31,7 @@ class NotificationHelper
             case 'cancel_booking':
                 broadcast(new NotificationSuccess($notification));
                 break;
-            case 'Registration Successful':
+            case 'Registration_Successful':
                 broadcast(new NotificationSuccess($notification));
                 break;
             default:

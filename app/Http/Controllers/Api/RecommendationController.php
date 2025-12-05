@@ -46,15 +46,5 @@ class RecommendationController extends Controller
                 'data' => $sortedHotels
             ]);
         }
-        if (!$user_id) {
-            $hotels = Hotel::with('images')
-                ->orderBy('hotel_class', 'desc') // sắp xếp từ cao xuống thấp
-                ->take(5)
-                ->get();
-        }
-        return response()->json([
-            'source' => 'default',
-            'data' => $hotels
-        ]);
     }
 }
