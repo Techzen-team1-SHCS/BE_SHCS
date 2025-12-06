@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\BlockController;
 use App\Http\Controllers\Api\BookingController;
 use App\Http\Controllers\Api\CommentController;
 use App\Http\Controllers\Api\DashboardController;
+use App\Http\Controllers\Api\DiscountController;
 use App\Http\Controllers\Api\HotelController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\PaymentController;
@@ -49,6 +50,8 @@ Route::group(['prefix' => 'auth'], function () {
     Route::post('/hotels/{hotel}/images', [HotelController::class, 'uploadImages']);
     Route::get('/tophotels',[HotelController::class,'topHotels']);
     Route::get('/hotel',[HotelController::class,'index']);
+    Route::get('/destinations/count', [HotelController::class, 'destinationsCount']);
+    Route::get('discount',[DiscountController::class,'index']);
     //Room
     Route::get('/rooms',[RoomController::class,'index']);
     Route::get('/room',[RoomController::class,'show']);
@@ -119,5 +122,8 @@ Route::group(['prefix' => 'auth'], function () {
         Route::get('dashboard/todayBooking',[DashboardController::class,'getTodayBookings']);
         Route::get('dashboard/getRoom',[DashboardController::class,'getRoomStats']);
         Route::get('dashboard/getStats',[DashboardController::class,'getDashboardStats']);
+        //Discount
+        Route::post('/discount',[DiscountController::class,'store']);
+
     });
 });

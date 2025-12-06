@@ -21,20 +21,26 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class HotelController extends Controller
 {
-    public function index(){
+    public function index()
+    {
         try {
-            $hotels = Hotel::with(['styles', 'images','rooms'])->get();
+            $hotels = Cache::remember('hotels_all', 600, function () {
+                return Hotel::with(['styles', 'images', 'rooms'])->get();
+            });
+
             return response()->json([
-                'status'=>200,
-                'content'=>$hotels
-            ],200);
+                'status' => 200,
+                'content' => $hotels
+            ], 200);
+
         } catch (\Throwable $th) {
             return response()->json([
-                'status'=>500,
-                'error'=>'Không có khách sạn nào để hiển thị'
-            ],500);
+                'status' => 500,
+                'error' => 'Không có khách sạn nào để hiển thị'
+            ], 500);
         }
     }
+
     public function sameProvince($id,Request $request)
     {
         try {
@@ -110,19 +116,23 @@ class HotelController extends Controller
         }
     }
 
-    public function topHotels() {
-    // Lấy cache hoặc truy vấn mới 10 khách sạn
-        $hotels = Hotel::with(['styles', 'images'])
-        ->orderBy('hotel_class', 'desc') // sắp xếp từ cao xuống thấp
-        ->take(5)
-        ->get();
-        // Format giá trực tiếp trên Collection
-        $hotels->transform(function ($hotel) {
-            $hotel->price_formatted = number_format($hotel->price, 0, ',', '.');
-            return $hotel;
+    public function topHotels()
+    {
+        // Key cache
+        $cacheKey = 'top_hotels';
+
+        // Lấy từ cache nếu có, nếu không thì query và lưu cache 60 giây
+        $hotels = Cache::remember($cacheKey, 60, function () {
+            return Hotel::with(['styles', 'images'])
+                ->orderBy('hotel_class', 'desc')
+                ->take(5)
+                ->get()
+                ->map(function ($hotel) {
+                    $hotel->price_formatted = number_format($hotel->price, 0, ',', '.');
+                    return $hotel;
+                });
         });
 
-        // Kiểm tra rỗng
         if ($hotels->isEmpty()) {
             return response()->json([
                 'status' => 400,
@@ -130,13 +140,28 @@ class HotelController extends Controller
             ]);
         }
 
-        // Trả về JSON
         return response()->json([
             'status' => 200,
-            'message' => 'Lấy danh sách top 10 khách sạn thành công',
+            'message' => 'Lấy danh sách top 5 khách sạn thành công',
             'data' => $hotels
         ], 200);
-}
+    }
+    public function destinationsCount()
+    {
+        return Cache::remember('destinations_count', 300, function () {
+            return [
+                ['province' => 'Hà nội', 'count' => Hotel::where('province', 'Hà nội')->count()],
+                ['province' => 'Đà nẵng', 'count' => Hotel::where('province', 'Đà nẵng')->count()],
+                ['province' => 'Hồ chí minh', 'count' => Hotel::where('province', 'Hồ Chí Minh')->count()],
+                ['province' => 'Nha trang', 'count' => Hotel::where('province', 'Nha Trang')->count()],
+                ['province' => 'Huế', 'count' => Hotel::where('province', 'Huế')->count()],
+                ['province' => 'Hải phòng', 'count' => Hotel::where('province', 'Hải Phòng')->count()],
+                ['province' => 'Phú Quốc', 'count' => Hotel::where('province', 'Phú Quốc')->count()],
+                ['province' => 'Đà Lạt', 'count' => Hotel::where('province', 'Đà Lạt')->count()],
+            ];
+        });
+    }
+
 
     public function search(Request $request)
     {

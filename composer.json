@@ -17,7 +17,7 @@
         "laravel/tinker": "^2.8",
         "lcobucci/jwt": "^4.3",
         "phpoffice/phpspreadsheet": "^5.1",
-        "predis/predis": "^3.2",
+        "predis/predis": "^3.3",
         "tymon/jwt-auth": "^2.2",
         "vinkla/hashids": "^11.0"
     },
