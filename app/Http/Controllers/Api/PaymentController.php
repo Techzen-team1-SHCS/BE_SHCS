@@ -44,7 +44,12 @@ class PaymentController extends Controller
             ], 400);
         }
         $vnp_TxnRef = $booking->id . '_' . time();
-        $vnp_Amount = (int)($booking->total_price * 100);
+        $finalPrice = $booking->final_price > 0
+            ? $booking->final_price
+            : $booking->total_price;
+
+        $finalPrice = (int)$finalPrice;
+        $vnp_Amount = $finalPrice * 100;
         $vnp_IpAddr = $request->ip();
 
         // Các tham số BẮT BUỘC theo VNPay docs
