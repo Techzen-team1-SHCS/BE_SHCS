@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Laravel\Reverb\Loggers\Log;
 use App\Helpers\NotificationHelper;
+use App\Jobs\ProcessBookingAfterCreation;
 
 class BookingController extends Controller
 {
@@ -72,9 +73,8 @@ class BookingController extends Controller
         ]);
 
         DB::beginTransaction();
-
         try {
-            // 🔒 LOCK để tránh race condition
+
             $room = Room::where('id', $request->room_id)
                 ->lockForUpdate()
                 ->first();
@@ -83,22 +83,19 @@ class BookingController extends Controller
                 return response()->json(['message' => 'Room not found'], 404);
             }
 
-            // Kiểm tra số lượng REAL-TIME
             if ($room->quantity < $request->quantity) {
                 DB::rollBack();
                 return response()->json([
-                    'message' => 'Not enough rooms available. Only ' . $room->quantity . ' rooms left.',
+                    'message' => 'Not enough rooms available',
                     'available_quantity' => $room->quantity
                 ], 400);
             }
 
-            // Tính tổng tiền
-            $checkIn = Carbon::parse($request->check_in);
-            $checkOut = Carbon::parse($request->check_out);
-            $nights = $checkIn->diffInDays($checkOut);
+            $nights = Carbon::parse($request->check_in)
+                            ->diffInDays(Carbon::parse($request->check_out));
+
             $totalPrice = $room->price * $nights * $request->quantity;
 
-            // Tạo booking
             $booking = Booking::create([
                 'user_id' => $request->user_id,
                 'room_id' => $request->room_id,
@@ -108,25 +105,14 @@ class BookingController extends Controller
                 'total_price' => $totalPrice,
                 'status' => 'pending'
             ]);
-             if ($booking) {
-                NotificationHelper::send(
-                    $booking->user_id,
-                    'booking',
-                    'Đặt phòng thành công',
-                    "Booking #{$booking->id} của bạn đã được đặt thành công với tổng giá "
-                    . number_format($booking->total_price, 0, ',', '.') . " VND.",
-                    ['booking_id' => $booking->id]
-                );
-            }
-            // Giảm số lượng phòng
+
             $room->decrement('quantity', $request->quantity);
-            $newQuantity = $room->fresh()->quantity; // Lấy giá trị mới nhất
+            $newQuantity = $room->fresh()->quantity;
 
             DB::commit();
 
-            // 📢 Broadcast realtime updates
-            event(new RoomQuantityUpdated($room->id, $newQuantity, 'booked', $booking->id));
-            event(new BookingCreated($booking));
+            // 👉 CHỈ MỘT DÒNG NÀY
+            ProcessBookingAfterCreation::dispatch($booking, $newQuantity);
 
             return response()->json([
                 'success' => true,

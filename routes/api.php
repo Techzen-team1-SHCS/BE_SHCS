@@ -64,6 +64,8 @@ Route::group(['prefix' => 'auth'], function () {
     Route::get('/booking',[BookingController::class,'index']);
     //Ticket Support
     Route::post('/support-tickets', [SupportTicketController::class, 'store']);
+    //discount
+    Route::post('/booking/{id}/apply-discount', [DiscountController::class, 'applyDiscount']);
     Route::group(['middleware' => 'auth:api'], function () {
 
         Route::post('/logout',[UserController::class,'logout']);
