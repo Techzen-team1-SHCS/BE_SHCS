@@ -87,7 +87,7 @@ class PaymentController extends Controller
         Payment::create([
             'user_id'=> Auth::id(),
             'booking_id' => $booking->id,
-            'amount' => $booking->total_price,
+            'amount' => $finalPrice,
             'status' => 'pending',
             'payment_method' => 'vnpay',
             'vnp_txn_ref' => $vnp_TxnRef,
