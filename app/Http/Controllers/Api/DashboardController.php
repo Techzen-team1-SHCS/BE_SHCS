@@ -7,11 +7,14 @@ use App\Models\Booking;
 use App\Models\Comment;
 use App\Models\Hotel;
 use App\Models\Room;
+use App\Models\User;
 use Carbon\Carbon;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Laravel\Reverb\Loggers\Log;
+
 
 class DashboardController extends Controller
 {
@@ -268,6 +271,15 @@ class DashboardController extends Controller
             'monthlyReservations' => $monthlyReservations,
             'guestSatisfaction' => $guestSatisfaction,
         ]);
+    }
+    public function dashboardStats(){
+        return Cache::remember('dashboard_stats', 5, function () {
+            return [
+                'revenue' => Booking::sum(DB::raw('COALESCE(final_price, total_price)')),
+                'bookingMonth' => Booking::whereMonth('created_at', now()->month)->count(),
+                'userCount' => User::count(),
+            ];
+        });
     }
 
 

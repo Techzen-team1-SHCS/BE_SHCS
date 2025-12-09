@@ -124,6 +124,7 @@ Route::group(['prefix' => 'auth'], function () {
         Route::get('dashboard/todayBooking',[DashboardController::class,'getTodayBookings']);
         Route::get('dashboard/getRoom',[DashboardController::class,'getRoomStats']);
         Route::get('dashboard/getStats',[DashboardController::class,'getDashboardStats']);
+        Route::get('dashboardStart',[DashboardController::class,'dashboardStats']);
         //Discount
         Route::post('/discount',[DiscountController::class,'store']);
 
