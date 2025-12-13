@@ -32,6 +32,7 @@ class CreateUserBehaviorJob implements ShouldQueue
             'hotel_id' => $this->log['hotel_id'] ?? null,
             'action'  => $this->log['action'],
             'metadata'=> isset($this->log['metadata']) ? json_encode($this->log['metadata']) : null,
+            'is_sent'=>false
         ]);
         } catch (\Throwable $th) {
             Log::error("Error creating user behavior: ".$th->getMessage());

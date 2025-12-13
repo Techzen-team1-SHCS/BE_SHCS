@@ -18,12 +18,14 @@ class UserBehavior extends Model
         'user_id',
         'hotel_id',
         'action',
-        'metadata',   // chi tiết hành vi dạng JSON
+        'metadata',
+        'is_sent'   // chi tiết hành vi dạng JSON
     ];
 
     protected $casts = [
         'metadata' => 'array',
         'timestamp' => 'datetime',
+        'is_sent'=>'boolean'
     ];
 
     // Quan hệ với user

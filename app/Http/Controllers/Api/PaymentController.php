@@ -149,14 +149,6 @@ class PaymentController extends Controller
 
             if ($payment->status === 'paid') {
                 // Nếu đã thanh toán trước đó
-                if ($booking) {
-                    NotificationHelper::send(
-                        $booking->user_id,
-                        'payment',
-                        'Thanh toán thành công',
-                        "Booking #{$booking->id} đã thanh toán thành công: " . number_format($booking->total_price,0,',','.') . " VND"
-                    );
-                }
                 return response()->json([
                     'status' => 'success',
                     'message' => 'Giao dịch đã được xử lý thành công trước đó'

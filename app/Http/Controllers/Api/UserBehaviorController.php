@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Console\Commands\SendBehaviorToAI;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use App\Jobs\CreateUserBehaviorJob;
+use App\Models\UserBehavior;
 
 class UserBehaviorController extends Controller
 {
@@ -52,6 +54,29 @@ class UserBehaviorController extends Controller
             ], 500);
         }
     }
-    
+    public function approveUser($userId)
+    {
+        $count = UserBehavior::where('user_id', $userId)
+            ->where('is_sent', false)
+            ->count();
+
+        if ($count === 0) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Không có log nào cần duyệt',
+            ]);
+        }
+
+        UserBehavior::where('user_id', $userId)
+            ->where('is_sent', false)
+            ->update(['is_sent' => true]);
+
+        return response()->json([
+            'status' => 'success',
+            'message' => "Đã duyệt $count log. Cron job sẽ tự gửi sang AI.",
+            'total' => $count,
+        ]);
+    }
+
 
 }

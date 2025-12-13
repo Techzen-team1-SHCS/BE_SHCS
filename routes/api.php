@@ -73,6 +73,8 @@ Route::group(['prefix' => 'auth'], function () {
         Route::post('/user/upload-avatar/{id}',[UserController::class,'uploadAvatar']);
         //UserBehavior
         Route::post('/user-behaviors/batch', [UserBehaviorController::class, 'batch']);
+        Route::post('/behaviors/approve/user/{id}',[UserBehaviorController::class,'approveUser']);
+
         //Hotel
         Route::post('/hotel',[HotelController::class,'store']);
         Route::put('/hotel/{id}',[HotelController::class,'update']);
@@ -105,6 +107,8 @@ Route::group(['prefix' => 'auth'], function () {
         Route::get('/Mywishlist',[WishListController::class,'show']);
         Route::post('/wishlist',[WishListController::class,'store']);
         Route::delete('/wishlist/{id}',[WishListController::class,'destroy']);
+        Route::delete('/remove/like',[WishListController::class,'removeLike']);
+        Route::post('/wishlist/check', [WishListController::class, 'check']);
         //Notification
         Route::get('Allnotifications', [NotificationController::class, 'getAllAdmin']);
         Route::get('/notifications', [NotificationController::class, 'index']);

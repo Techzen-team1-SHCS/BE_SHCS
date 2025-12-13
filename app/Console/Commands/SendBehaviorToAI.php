@@ -16,7 +16,10 @@ class SendBehaviorToAI extends Command
     public function handle()
     {
         // 1. Lấy batch hành vi mới nhất
-        $behaviors = UserBehavior::orderByDesc('timestamp')->take(100)->get();
+        $behaviors = UserBehavior::where('is_sent', true)
+        ->orderByDesc('timestamp')
+        ->take(100)
+        ->get();
         if ($behaviors->isEmpty()) {
             $this->info('Không có dữ liệu để gửi.');
             return;
@@ -42,7 +45,7 @@ class SendBehaviorToAI extends Command
             // 3. Gửi batch hành vi sang AI (POST /user_actions_batch)
             $response = Http::timeout(10)
                 ->withHeaders($headers)
-                ->post('http://192.168.149.110:5000/user_actions_batch', $payload);
+                ->post('http://192.168.30.110:5000/user_actions_batch', $payload);
 
             if (!$response->successful()) {
                 $this->error('Gửi user_actions_batch thất bại: ' . $response->body());
@@ -58,7 +61,7 @@ class SendBehaviorToAI extends Command
             foreach ($uniqueUserIds as $userId) {
                 $recommendationRes = Http::timeout(10)
                     ->withHeaders($headers)
-                    ->get("http://192.168.149.110:5000/recommendations/{$userId}", [
+                    ->get("http://192.168.30.110:5000/recommendations/{$userId}", [
                         'top_k' => 10,
                     ]);
                 if (!$recommendationRes->successful()) {

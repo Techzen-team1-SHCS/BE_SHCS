@@ -166,9 +166,7 @@ class HotelController extends Controller
     public function search(Request $request)
     {
         try {
-            $query = Hotel::with(['rooms', 'styles', 'images']);
-
-        // 1️⃣ Keyword filter (tìm tự do)
+            $query = Hotel::with(['rooms', 'images']);
         if ($request->filled('searchTerm')) {
             $keyword = $request->searchTerm;
             $query->where(function ($q) use ($keyword) {
@@ -177,20 +175,14 @@ class HotelController extends Controller
                   ->orWhere('name_nearby_place', 'like', "%$keyword%");
             });
         }
-
-        // 2️⃣ Destination / Province filter (từ FE gọi là destination)
         if ($request->filled('destination')) {
             $query->where('province', 'like', "%{$request->destination}%");
         }
-
-        // 3️⃣ Room Type filter
         if ($request->filled('roomType')) {
             $query->whereHas('styles', function ($q) use ($request) {
                 $q->where('style', 'like', "%{$request->roomType}%");
             });
         }
-
-        // 4️⃣ Guest & Date filter
         if ($request->filled('checkIn') && $request->filled('checkOut')) {
             $query->whereHas('rooms', function ($q) use ($request) {
                 if ($request->filled('checkIn') && $request->filled('checkOut')) {
@@ -204,8 +196,6 @@ class HotelController extends Controller
                 }
             });
         }
-
-        // 5️⃣ Price filter
        if ($request->filled('selectedFilters')) {
             $selectedFilters = is_array($request->selectedFilters)
                 ? $request->selectedFilters
@@ -228,7 +218,6 @@ class HotelController extends Controller
                             }
                         }
                     } else {
-                        // Đây là filter amenities hoặc text
                         $q->where(function ($inner) use ($filter) {
                             $inner->orWhereJsonContains('amenities', $filter)
                                 ->orWhere('amenities', 'like', "%$filter%")
@@ -239,12 +228,8 @@ class HotelController extends Controller
                 }
             });
         }
-
-        // 6️⃣ Sort filter
         $sort = $request->get('sort', 'price_asc');
 
-
-        // 7️⃣ Pagination + Format
         $perPage = $request->get('per_page', 10);
         $hotels = $query->paginate($perPage);
 
