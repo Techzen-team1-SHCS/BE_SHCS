@@ -170,9 +170,7 @@ class HotelController extends Controller
         if ($request->filled('searchTerm')) {
             $keyword = $request->searchTerm;
             $query->where(function ($q) use ($keyword) {
-                $q->where('name', 'like', "%$keyword%")
-                  ->orWhere('description', 'like', "%$keyword%")
-                  ->orWhere('name_nearby_place', 'like', "%$keyword%");
+                $q->where('name', 'like', "%$keyword%");
             });
         }
         if ($request->filled('destination')) {
