@@ -232,12 +232,24 @@ class PaymentController extends Controller
             ], 500);
         }
     }
-    public function index(){
-        $user_id=Auth::id();
-        $payments = Payment::where('user_id', $user_id)->orderBy('created_at', 'desc')->get();
+    public function index()
+    {
+        $user_id = Auth::id();
+
+        $payments = Payment::where('user_id', $user_id)
+            ->select([
+                'id',
+                'amount',
+                'status',
+                'created_at'
+            ])
+            ->orderByDesc('created_at')   // 👈 CHỈ LẤY 50 CÁI GẦN NHẤT
+            ->get();
+
         return response()->json([
             'status' => 'success',
             'data' => $payments,
         ]);
     }
+
 }

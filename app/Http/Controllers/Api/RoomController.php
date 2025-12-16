@@ -59,10 +59,9 @@ class RoomController extends Controller
                         $q->whereNull('available_to')
                           ->orWhere('available_to', '>=', $checkOut);
                     });
-                })
-                ->with('hotel') // Eager load hotel info nếu cần
+                }) // Eager load hotel info nếu cần
                 ->get();
-           
+
             return response()->json([
                 'success' => true,
                 'data' => $availableRooms,

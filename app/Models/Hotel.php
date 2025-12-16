@@ -51,5 +51,14 @@ class Hotel extends Model
     {
         return number_format($this->attributes['price'], 0, ',', '.');
     }
+    public function firstimage(){
+        return $this->hasOne(Image::class,'reference_id')
+        ->orderBy('id','desc');
+    }
+    public function firstroom(){
+        return $this->hasOne(Room::class,'hotel_id')
+        ->where('quantity','>',0)
+        ->orderBy('available_from','asc');
+    }
 
 }
