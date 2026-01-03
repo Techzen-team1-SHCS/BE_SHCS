@@ -108,7 +108,7 @@ Route::group(['prefix' => 'auth'], function () {
         Route::post('/wishlist',[WishListController::class,'store']);
         Route::delete('/wishlist/{id}',[WishListController::class,'destroy']);
         Route::delete('/remove/like',[WishListController::class,'removeLike']);
-        Route::post('/wishlist/check', [WishListController::class, 'check']);
+        Route::get('/wishlist/check', [WishListController::class, 'check']);
         //Notification
         Route::get('Allnotifications', [NotificationController::class, 'getAllAdmin']);
         Route::get('/notifications', [NotificationController::class, 'index']);
@@ -121,6 +121,7 @@ Route::group(['prefix' => 'auth'], function () {
         Route::post('/users/{id}/block', [BlockController::class, 'blockUser']);
         Route::post('/users/{id}/unblock', [BlockController::class, 'unblockUser']);
         //Admin Dashboard
+        Route::get('/dashboard/summary',[DashboardController::class,'summary']);
         Route::get('/dashboard/revenue', [DashboardController::class, 'getRevenue']);
         Route::get('/dashboard/by_month',[DashboardController::class,'getBookingsByMonth']);
         Route::get('dashboard/bookings-chart', [DashboardController::class, 'getBookingsChart']);

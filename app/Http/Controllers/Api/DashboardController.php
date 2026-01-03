@@ -63,7 +63,7 @@ class DashboardController extends Controller
             'data' => $bookings
         ]);
     }
-    public function getBookingsChart(Request $request)
+     public function getBookingsChart(Request $request)
     {
         $type = $request->query('type', 'monthly'); // default: monthly
 
@@ -136,6 +136,7 @@ class DashboardController extends Controller
             'message' => 'Invalid type'
         ]);
     }
+
     public function getTopHotelsByBookings(){
         $topHotels = Hotel::withCount(['bookings as booking_count'])
         ->orderBy('booking_count', 'desc')
@@ -227,16 +228,12 @@ class DashboardController extends Controller
     public function getDashboardStats()
     {
         // 1️⃣ Occupancy Rate
-        $occupied = Booking::whereDate('check_in', '<=', today())
-                           ->whereDate('check_out', '>=', today())
-                           ->sum('quantity');
+        $occupied = Booking::sum('quantity');
 
         $totalRooms = Room::sum('quantity');
-
         $occupancyRate = $totalRooms > 0
             ? round(($occupied / $totalRooms) * 100) . '%'
             : '0%';
-
         // 2️⃣ Pending Reservations
         $pendingReservations = Booking::where('status', 'pending')->count();
 
@@ -281,6 +278,41 @@ class DashboardController extends Controller
             ];
         });
     }
+    public function summary()
+    {
+        try {
+            $now = Carbon::now();
 
+            $data = Cache::remember('dashboard_summary', 60, function () use ($now) {
 
+                $revenue = Booking::where('status', 'completed')
+                    ->sum('total_price');
+
+                $newBooking = Booking::whereBetween('created_at', [
+                    $now->copy()->startOfMonth(),
+                    $now->copy()->endOfMonth()
+                ])->count();
+
+                $userActive = User::where('role', 0)->count();
+
+                return [
+                    'revenue' => $revenue,
+                    'new_booking' => $newBooking,
+                    'user_active' => $userActive,
+                ];
+            });
+
+            return response()->json([
+                'status' => 200,
+                'data' => $data
+            ], 200);
+
+        } catch (\Throwable $e) {
+            return response()->json([
+                'status' => 500,
+                'message' => 'Failed to load dashboard',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 }

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\RoomRequest;
 use App\Http\Requests\UpdateRoomRequest;
+use App\Models\Booking;
 use App\Models\Room;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -32,54 +33,70 @@ class RoomController extends Controller
             ]);
         }
     }
-     public function getAvailableRooms($hotelId, Request $request)
+    public function getAvailableRooms($hotelId, Request $request)
     {
-        try {
-            $request->validate([
-                'checkIn' => 'required|date',
-                'checkOut' => 'required|date|after:checkIn',
-                'guests' => 'nullable|integer|min:1'
-            ]);
+        $request->validate([
+            'checkIn' => 'required|date',
+            'checkOut' => 'required|date|after:checkIn',
+            'guests' => 'required|integer|min:1'
+        ]);
 
-            $checkIn = Carbon::parse($request->checkIn)->startOfDay();
-            $checkOut = Carbon::parse($request->checkOut)->endOfDay();
-            $guests = $request->guests ?? 1;
+        $checkIn = Carbon::parse($request->checkIn)->startOfDay();
+        $checkOut = Carbon::parse($request->checkOut)->endOfDay();
+        $guests = $request->guests;
 
-            // Lấy phòng available với điều kiện
-            $availableRooms = Room::where('hotel_id', $hotelId)
-                ->where('availability_status', 'available')
-                ->where('max_guest', '>=', $guests)
-                ->where('quantity', '>', 0) // Còn phòng trống
-                ->where(function($query) use ($checkIn, $checkOut) {
-                    // Check available_from và available_to nếu có
-                    $query->where(function($q) use ($checkIn, $checkOut) {
-                        $q->whereNull('available_from')
-                          ->orWhere('available_from', '<=', $checkIn);
-                    })->where(function($q) use ($checkIn, $checkOut) {
-                        $q->whereNull('available_to')
-                          ->orWhere('available_to', '>=', $checkOut);
-                    });
-                }) // Eager load hotel info nếu cần
-                ->get();
+        // 1️⃣ Check phòng phù hợp số người trước
+        $rooms = Room::where('hotel_id', $hotelId)
+            ->where('availability_status', 'available')
+            ->where('max_guest', '>=', $guests)
+            ->get();
 
-            return response()->json([
-                'success' => true,
-                'data' => $availableRooms,
-                'total_available' => $availableRooms->count(),
-                'search_params' => [
-                    'checkIn' => $checkIn,
-                    'checkOut' => $checkOut,
-                    'guests' => $guests
-                ]
-            ]);
-
-        } catch (\Exception $e) {
+        if ($rooms->isEmpty()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Error fetching available rooms: ' . $e->getMessage()
-            ], 500);
+                'type' => 'OVER_CAPACITY',
+                'message' => 'Không có phòng phù hợp với số lượng khách'
+            ], 422);
         }
+
+        // 2️⃣ Lọc phòng còn trống theo booking
+        $availableRooms = $rooms->filter(function ($room) use ($checkIn, $checkOut) {
+
+            $bookedCount = Booking::where('room_id', $room->id)
+                ->where('status', '!=', 'cancelled')
+                ->where(function ($q) use ($checkIn, $checkOut) {
+                    $q->whereBetween('check_in', [$checkIn, $checkOut])
+                    ->orWhereBetween('check_out', [$checkIn, $checkOut])
+                    ->orWhere(function ($q2) use ($checkIn, $checkOut) {
+                        $q2->where('check_in', '<=', $checkIn)
+                            ->where('check_out', '>=', $checkOut);
+                    });
+                })
+                ->count();
+
+            return $bookedCount < $room->quantity;
+        });
+
+        if ($availableRooms->isEmpty()) {
+            return response()->json([
+                'success' => false,
+                'type' => 'NO_ROOM',
+                'message' => 'Hết phòng trong khoảng thời gian bạn chọn'
+            ], 422);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $availableRooms->values(),
+            'total_available' => $availableRooms->count(),
+            'search_params' => [
+                'checkIn' => $checkIn,
+                'checkOut' => $checkOut,
+                'guests' => $guests
+            ]
+        ]);
     }
+
     public function show($id){
         try {
             $room=Room::with('hotel')->findOrFail($id);

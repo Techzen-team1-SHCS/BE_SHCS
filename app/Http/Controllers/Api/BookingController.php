@@ -20,10 +20,27 @@ use App\Jobs\ProcessBookingAfterCreation;
 
 class BookingController extends Controller
 {
-    public function index(){
-        $bookings=Booking::with(['user','room'])->orderBy('created_at','desc')->get();
-        return response()->json(['data'=>$bookings]);
+    public function index()
+{
+    try {
+        // Phiên bản đơn giản nhất nhưng vẫn tối ưu
+        $bookings = Booking::query()
+            ->select('id', 'user_id','room_id', 'check_in', 'check_out', 'total_price', 'status', 'payment_status','created_at','updated_at','quantity')
+            ->with([
+                'room:id,quantity,max_guest',
+                'user'
+            ])
+            ->latest()
+            ->get();
+
+        return response()->json($bookings);
+
+    } catch (\Exception $e) {
+        return response()->json([
+            'message' => 'Failed to fetch bookings'
+        ], 500);
     }
+}
     public function show($id){
         $booking=Booking::with(['room','room.hotel','room.hotel.images'])->findOrFail($id);
         if(!$booking){

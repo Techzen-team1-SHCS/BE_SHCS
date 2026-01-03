@@ -7,6 +7,7 @@ use App\Models\UserBehavior;
 use App\Models\WishList;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class WishListController extends Controller
 {
@@ -73,59 +74,65 @@ class WishListController extends Controller
         ]);
     }
     public function removeLike(Request $request)
-    {
-        $validated = $request->validate([
-            'user_id' => 'required|exists:users,id',
-            'hotel_id' => 'required|exists:hotels,id',
-        ]);
+{
+    $validated = $request->validate([
+        'user_id' => 'required|exists:users,id',
+        'hotel_id' => 'required|exists:hotels,id',
+    ]);
 
-        $deleted = UserBehavior::where('user_id', $validated['user_id'])
+    DB::beginTransaction();
+
+    try {
+        // 1️⃣ Xóa log hành vi like
+        UserBehavior::where('user_id', $validated['user_id'])
             ->where('hotel_id', $validated['hotel_id'])
             ->where('action', 'like')
             ->delete();
 
-        if ($deleted === 0) {
+        // 2️⃣ Xóa khỏi wishlist
+        $wishlistDeleted = WishList::where('user_id', $validated['user_id'])
+            ->where('hotel_id', $validated['hotel_id'])
+            ->delete();
+
+        DB::commit();
+
+        if ($wishlistDeleted === 0) {
             return response()->json([
-                'status' => 'error',
-                'message' => 'Không tìm thấy log like để xóa'
-            ], 404);
+                'status' => 'warning',
+                'message' => 'Không có khách sạn trong wishlist'
+            ], 200);
         }
 
         return response()->json([
             'status' => 'success',
-            'message' => 'Đã xóa log like!'
-        ]);
-    }
-    public function check(Request $request)
-{
-    try {
-        $userId = Auth::id();
-        if (!$userId) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Unauthorized'
-            ], 401);
-        }
-
-        $request->validate([
-            'hotel_id' => 'required|exists:hotels,id',
+            'message' => 'Đã xóa khỏi danh sách yêu thích và log like'
         ]);
 
-        $exists = WishList::where('user_id', $userId)
-                          ->where('hotel_id', $request->hotel_id)
-                          ->exists();
+    } catch (\Throwable $e) {
+        DB::rollBack();
 
         return response()->json([
-            'success' => true,
-            'is_favorite' => $exists
-        ], 200);
-
-    } catch (\Exception $e) {
-        return response()->json([
+            'status' => 'error',
+            'message' => 'Xóa thất bại',
             'error' => $e->getMessage()
         ], 500);
     }
 }
+     public function check(Request $request)
+    {
+        $request->validate([
+            'hotel_id' => 'required|integer|exists:hotels,id'
+        ]);
 
+        $userId = $request->user()->id;
+        $hotelId = $request->hotel_id;
+        $liked = Wishlist::where('user_id', $userId)
+            ->where('hotel_id', $hotelId)
+            ->exists();
+
+        return response()->json([
+            'liked' => $liked
+        ]);
+    }
 
 }

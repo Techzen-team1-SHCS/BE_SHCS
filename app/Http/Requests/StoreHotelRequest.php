@@ -24,7 +24,7 @@ class StoreHotelRequest extends FormRequest
             'description'       => 'required|string',
             'price'             => 'required|numeric|min:0',
             'name_nearby_place' => 'required|string|max:255',
-            'hotel_class'       => 'required|integer|min:0|max:5',
+            'hotel_class'       => 'required|decimal:1',
             'styles.*'          => 'nullable|integer|exists:styles,id',
             'images'            => 'array',   // ✅ nhiều ảnh
             'images.*'          => 'image|mimes:jpg,jpeg,png,webp,gif|max:2048'

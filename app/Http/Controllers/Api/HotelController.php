@@ -23,59 +23,51 @@ class HotelController extends Controller
 {
     public function index()
     {
+        $hotels = Hotel::with([
+                'firstimage:id,reference_id,url'
+            ])->get();
+        return response()->json([
+            'status' => 'success',
+            'content' => $hotels
+        ]);
+    }
+
+
+    public function sameProvince($id, Request $request)
+    {
         try {
-            $hotels = Cache::remember('hotels_all', 600, function () {
-                return Hotel::with(['styles', 'images', 'rooms'])->get();
-            });
+            $limit = (int) $request->get('limit', 2);
+
+            // Lấy province nhưng chỉ lấy field cần
+            $hotel = Hotel::select('id', 'province')
+                ->findOrFail($id);
+
+            $sameProvinceHotels = Hotel::query()
+                ->select([
+                    'id',
+                    'name',
+                    'province',
+                    'hotel_class'
+                ])
+                ->where('province', $hotel->province)
+                ->where('id', '!=', $id)
+                ->with([
+                    'images'
+                ])
+                ->limit($limit)
+                ->get();
 
             return response()->json([
-                'status' => 200,
-                'content' => $hotels
-            ], 200);
-
+                'success' => true,
+                'data' => $sameProvinceHotels
+            ]);
         } catch (\Throwable $th) {
             return response()->json([
-                'status' => 500,
-                'error' => 'Không có khách sạn nào để hiển thị'
+                'success' => false,
+                'message' => 'Lỗi server'
             ], 500);
         }
     }
-
-    public function sameProvince($id, Request $request)
-{
-    try {
-        $limit = (int) $request->get('limit', 2);
-
-        // Lấy province nhưng chỉ lấy field cần
-        $hotel = Hotel::select('id', 'province')
-            ->findOrFail($id);
-
-        $sameProvinceHotels = Hotel::query()
-            ->select([
-                'id',
-                'name',
-                'province',
-                'hotel_class'
-            ])
-            ->where('province', $hotel->province)
-            ->where('id', '!=', $id)
-            ->with([
-                'images'
-            ])
-            ->limit($limit)
-            ->get();
-
-        return response()->json([
-            'success' => true,
-            'data' => $sameProvinceHotels
-        ]);
-    } catch (\Throwable $th) {
-        return response()->json([
-            'success' => false,
-            'message' => 'Lỗi server'
-        ], 500);
-    }
-}
 
     public function sameStyle($id,Request $request)
     {
@@ -179,136 +171,136 @@ class HotelController extends Controller
 
 
     public function search(Request $request)
-{
-    try {
+    {
+        try {
 
-        /* ===== CACHE KEY ===== */
-        $cacheKey = 'hotel_search:' . md5(json_encode([
-            'searchTerm'  => $request->searchTerm,
-            'destination' => $request->destination,
-            'roomType'    => $request->roomType,
-            'checkIn'     => $request->checkIn,
-            'checkOut'    => $request->checkOut,
-            'filters'     => $request->selectedFilters,
-            'page'        => $request->get('page', 1),
-            'per_page'    => $request->get('per_page', 10),
-        ]));
+            /* ===== CACHE KEY ===== */
+            $cacheKey = 'hotel_search:' . md5(json_encode([
+                'searchTerm'  => $request->searchTerm,
+                'destination' => $request->destination,
+                'roomType'    => $request->roomType,
+                'checkIn'     => $request->checkIn,
+                'checkOut'    => $request->checkOut,
+                'filters'     => $request->selectedFilters,
+                'page'        => $request->get('page', 1),
+                'per_page'    => $request->get('per_page', 10),
+            ]));
 
-        /* ===== LOG HIT / MISS ===== */
-        if (Cache::has($cacheKey)) {
-            Log::info('🔥 CACHE HIT', ['key' => $cacheKey]);
-        } else {
-            Log::warning('❌ CACHE MISS', ['key' => $cacheKey]);
-        }
+            /* ===== LOG HIT / MISS ===== */
+            if (Cache::has($cacheKey)) {
+                Log::info('🔥 CACHE HIT', ['key' => $cacheKey]);
+            } else {
+                Log::warning('❌ CACHE MISS', ['key' => $cacheKey]);
+            }
 
-        $response = Cache::remember(
-            $cacheKey,
-            now()->addMinutes(10),
-            function () use ($request, $cacheKey) {
+            $response = Cache::remember(
+                $cacheKey,
+                now()->addMinutes(10),
+                function () use ($request, $cacheKey) {
 
-                // 👉 DÒNG NÀY CHỈ XUẤT HIỆN KHI CACHE MISS
-                Log::error('⚠️ QUERY DB RUNNING', ['key' => $cacheKey]);
+                    // 👉 DÒNG NÀY CHỈ XUẤT HIỆN KHI CACHE MISS
+                    Log::error('⚠️ QUERY DB RUNNING', ['key' => $cacheKey]);
 
-                $query = Hotel::query()
-                    ->select([
-                        'hotels.id',
-                        'hotels.name',
-                        'hotels.province',
-                        'hotels.description',
-                        'hotels.price',
-                        'hotels.hotel_class',
-                    ])
-                    ->with([
-                        'firstimage:id,reference_id,url',
-                        'firstroom:id,hotel_id,available_from,available_to,quantity',
-                    ]);
+                    $query = Hotel::query()
+                        ->select([
+                            'hotels.id',
+                            'hotels.name',
+                            'hotels.province',
+                            'hotels.description',
+                            'hotels.price',
+                            'hotels.hotel_class',
+                        ])
+                        ->with([
+                            'firstimage:id,reference_id,url',
+                            'firstroom:id,hotel_id,available_from,available_to,quantity',
+                        ]);
 
-                /* ===== SEARCH ===== */
-                if ($request->filled('searchTerm')) {
-                    $query->where('hotels.name', 'like', "%{$request->searchTerm}%");
-                }
+                    /* ===== SEARCH ===== */
+                    if ($request->filled('searchTerm')) {
+                        $query->where('hotels.name', 'like', "%{$request->searchTerm}%");
+                    }
 
-                if ($request->filled('destination')) {
-                    $query->where('hotels.province', 'like', "%{$request->destination}%");
-                }
+                    if ($request->filled('destination')) {
+                        $query->where('hotels.province', 'like', "%{$request->destination}%");
+                    }
 
-                if ($request->filled('roomType')) {
-                    $query->whereHas('styles', function ($q) use ($request) {
-                        $q->where('style', 'like', "%{$request->roomType}%");
-                    });
-                }
-                if ($request->filled('checkIn') && $request->filled('checkOut')) {
-                    $query->whereHas('firstroom', function ($q) use ($request) {
-                        if ($request->filled('checkIn') && $request->filled('checkOut')) {
-                            $q->where(function ($r) use ($request) {
-                                $r->whereNull('available_from')
-                                ->orWhere('available_from', '<=', $request->checkIn);
-                            })->where(function ($r) use ($request) {
-                                $r->whereNull('available_to')
-                                ->orWhere('available_to', '>=', $request->checkOut);
-                            });
-                        }
-                    });
-                }
-
-                if ($request->filled('selectedFilters')) {
-                    $filters = is_array($request->selectedFilters)
-                        ? $request->selectedFilters
-                        : explode(',', $request->selectedFilters);
-
-                    foreach ($filters as $filter) {
-
-                        if (preg_match('/(\d+) sao/', $filter, $m)) {
-                            $query->where('hotel_class', '>=', (int)$m[1] * 10);
-                            continue;
-                        }
-
-                        $ratingMap = [
-                            'Tuyệt hảo' => 50,
-                            'Rất tốt'   => 40,
-                            'Tốt'       => 30,
-                            'Dễ chịu'   => 20,
-                        ];
-
-                        foreach ($ratingMap as $text => $value) {
-                            if (str_contains($filter, $text)) {
-                                $query->where('hotel_class', '>=', $value);
-                                continue 2;
-                            }
-                        }
-
-                        $query->where(function ($q) use ($filter) {
-                            $q->orWhereJsonContains('amenities', $filter)
-                              ->orWhere('hotels.name', 'like', "%{$filter}%")
-                              ->orWhere('hotels.province', 'like', "%{$filter}%");
+                    if ($request->filled('roomType')) {
+                        $query->whereHas('styles', function ($q) use ($request) {
+                            $q->where('style', 'like', "%{$request->roomType}%");
                         });
                     }
+                    if ($request->filled('checkIn') && $request->filled('checkOut')) {
+                        $query->whereHas('firstroom', function ($q) use ($request) {
+                            if ($request->filled('checkIn') && $request->filled('checkOut')) {
+                                $q->where(function ($r) use ($request) {
+                                    $r->whereNull('available_from')
+                                    ->orWhere('available_from', '<=', $request->checkIn);
+                                })->where(function ($r) use ($request) {
+                                    $r->whereNull('available_to')
+                                    ->orWhere('available_to', '>=', $request->checkOut);
+                                });
+                            }
+                        });
+                    }
+
+                    if ($request->filled('selectedFilters')) {
+                        $filters = is_array($request->selectedFilters)
+                            ? $request->selectedFilters
+                            : explode(',', $request->selectedFilters);
+
+                        foreach ($filters as $filter) {
+
+                            if (preg_match('/(\d+) sao/', $filter, $m)) {
+                                $query->where('hotel_class', '>=', (int)$m[1] * 10);
+                                continue;
+                            }
+
+                            $ratingMap = [
+                                'Tuyệt hảo' => 50,
+                                'Rất tốt'   => 40,
+                                'Tốt'       => 30,
+                                'Dễ chịu'   => 20,
+                            ];
+
+                            foreach ($ratingMap as $text => $value) {
+                                if (str_contains($filter, $text)) {
+                                    $query->where('hotel_class', '>=', $value);
+                                    continue 2;
+                                }
+                            }
+
+                            $query->where(function ($q) use ($filter) {
+                                $q->orWhereJsonContains('amenities', $filter)
+                                ->orWhere('hotels.name', 'like', "%{$filter}%")
+                                ->orWhere('hotels.province', 'like', "%{$filter}%");
+                            });
+                        }
+                    }
+
+                    $hotels = $query->paginate($request->get('per_page', 10));
+
+                    $hotels->getCollection()->transform(function ($hotel) {
+                        $hotel->price_formatted = number_format($hotel->price, 0, ',', '.');
+                        return $hotel;
+                    });
+
+                    return [
+                        'status' => 200,
+                        'data'   => $hotels,
+                        'total_results' => $hotels->total(),
+                    ];
                 }
+            );
 
-                $hotels = $query->paginate($request->get('per_page', 10));
+            return response()->json($response);
 
-                $hotels->getCollection()->transform(function ($hotel) {
-                    $hotel->price_formatted = number_format($hotel->price, 0, ',', '.');
-                    return $hotel;
-                });
-
-                return [
-                    'status' => 200,
-                    'data'   => $hotels,
-                    'total_results' => $hotels->total(),
-                ];
-            }
-        );
-
-        return response()->json($response);
-
-    } catch (\Throwable $e) {
-        return response()->json([
-            'status' => 500,
-            'error' => $e->getMessage()
-        ], 500);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'status' => 500,
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
-}
 
 
     public function store(StoreHotelRequest $request)
