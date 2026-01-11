@@ -1,5 +1,5 @@
 <?php
-
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -16,3 +16,20 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', function () {
     return view('welcome');
 });
+Route::get('/gemini-test', function () {
+    $model = 'models/gemini-2.5-flash';
+
+    $res = Http::post(
+        "https://generativelanguage.googleapis.com/v1/$model:generateContent?key=" . env('GEMINI_API_KEY'),
+        [
+            'contents' => [[
+                'parts' => [[
+                    'text' => 'Hello Gemini from Laravel'
+                ]]
+            ]]
+        ]
+    )->json();
+
+    return $res['candidates'][0]['content']['parts'][0]['text'] ?? $res;
+});
+
