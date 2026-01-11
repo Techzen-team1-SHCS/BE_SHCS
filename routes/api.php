@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\BlockController;
 use App\Http\Controllers\Api\BookingController;
+use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\Api\CommentController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\DiscountController;
@@ -30,6 +31,7 @@ use Illuminate\Support\Facades\Route;
 
 
 Route::group(['prefix' => 'auth'], function () {
+     Route::get('/chat/stream', [ChatController::class, 'stream']);
     //user
     Route::post('/login', [UserController::class, 'login']);
     Route::post('/loginGoogle',[UserController::class,'loginGoogle']);
@@ -64,6 +66,8 @@ Route::group(['prefix' => 'auth'], function () {
     Route::get('/booking',[BookingController::class,'index']);
     //Ticket Support
     Route::post('/support-tickets', [SupportTicketController::class, 'store']);
+
+
     //discount
     Route::post('/booking/{id}/apply-discount', [DiscountController::class, 'applyDiscount']);
     Route::group(['middleware' => 'auth:api'], function () {
