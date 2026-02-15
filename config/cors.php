@@ -4,8 +4,7 @@ return [
     'paths' => ['api/*', 'sanctum/csrf-cookie', 'broadcasting/auth'],
     'allowed_methods' => ['*'],
     'allowed_origins' => [
-        'http://localhost:3000',
-        'https://beshcs-production.up.railway.app',
+        'http://localhost:5173',
     ],
     'allowed_origins_patterns' => [],
     'allowed_headers' => ['*'],

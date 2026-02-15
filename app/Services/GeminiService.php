@@ -16,15 +16,21 @@ class GeminiService
 
     public function generateText($prompt)
     {
-        $res = Http::post(
+        $response = Http::post(
             "https://generativelanguage.googleapis.com/v1/{$this->model}:generateContent?key={$this->apiKey}",
             [
                 'contents' => [[
-                    'parts' => [[ 'text' => $prompt ]]
+                    'parts' => [['text' => $prompt]]
                 ]]
             ]
-        )->json();
+        );
 
-        return $res['candidates'][0]['content']['parts'][0]['text'] ?? null;
+        if (!$response->successful()) {
+            return 'Gemini API Error: ' . $response->body();
+        }
+
+        $res = $response->json();
+
+        return $res['candidates'][0]['content']['parts'][0]['text'] ?? 'No response text';
     }
 }

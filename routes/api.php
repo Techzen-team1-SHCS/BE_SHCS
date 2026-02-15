@@ -31,39 +31,39 @@ use Illuminate\Support\Facades\Route;
 
 
 Route::group(['prefix' => 'auth'], function () {
-     Route::get('/chat/stream', [ChatController::class, 'stream']);
+    Route::post('/chat/stream', [ChatController::class, 'stream']);
     //user
     Route::post('/login', [UserController::class, 'login']);
-    Route::post('/loginGoogle',[UserController::class,'loginGoogle']);
+    Route::post('/loginGoogle', [UserController::class, 'loginGoogle']);
     Route::post('/register', [UserController::class, 'register']);
     Route::post('/passwordRetrieval', [UserController::class, 'passwordRetrieval']);
     Route::post('/users', [UserController::class, 'addUser']);
     Route::get('/hotels/search', [HotelController::class, 'search']);
-    Route::post('subscriber',[NotificationController::class,'store']);
+    Route::post('subscriber', [NotificationController::class, 'store']);
     Route::post('/forgot-password', [UserController::class, 'sendResetLink']);
     Route::post('/reset-password', [UserController::class, 'reset']);
-    Route::get('/user/{id}',[UserController::class,'show']);
-    Route::get('user',[UserController::class,'index']);
+    Route::get('/user/{id}', [UserController::class, 'show']);
+    Route::get('user', [UserController::class, 'index']);
     //Hotel
     Route::get('hotels/{id}/same-style', [HotelController::class, 'sameStyle']);
     Route::get('hotels/{id}/same-province', [HotelController::class, 'sameProvince']);
-    Route::get('/hotel/{id}',[HotelController::class,'show']);
+    Route::get('/hotel/{id}', [HotelController::class, 'show']);
     Route::post('/import-hotels-excel', [HotelController::class, 'importHotelStyles']);
     Route::post('/hotels/{hotel}/images', [HotelController::class, 'uploadImages']);
-    Route::get('/tophotels',[HotelController::class,'topHotels']);
-    Route::get('/hotel',[HotelController::class,'index']);
+    Route::get('/tophotels', [HotelController::class, 'topHotels']);
+    Route::get('/hotel', [HotelController::class, 'index']);
     Route::get('/destinations/count', [HotelController::class, 'destinationsCount']);
-    Route::get('discount',[DiscountController::class,'index']);
+    Route::get('discount', [DiscountController::class, 'index']);
     //Room
-    Route::get('/rooms',[RoomController::class,'index']);
-    Route::get('/room',[RoomController::class,'show']);
+    Route::get('/rooms', [RoomController::class, 'index']);
+    Route::get('/room', [RoomController::class, 'show']);
     Route::get('/hotels/{hotelId}/available-rooms', [RoomController::class, 'getAvailableRooms']);
     //Payment
     Route::get('/vnpay/return', [PaymentController::class, 'vnpayReturn']);
     //Comments
     Route::get('/comments', [CommentController::class, 'index']);
     //Booking
-    Route::get('/booking',[BookingController::class,'index']);
+    Route::get('/booking', [BookingController::class, 'index']);
     //Ticket Support
     Route::post('/support-tickets', [SupportTicketController::class, 'store']);
 
@@ -72,29 +72,29 @@ Route::group(['prefix' => 'auth'], function () {
     Route::post('/booking/{id}/apply-discount', [DiscountController::class, 'applyDiscount']);
     Route::group(['middleware' => 'auth:api'], function () {
 
-        Route::post('/logout',[UserController::class,'logout']);
-        Route::post('/user/update/{id}',[UserController::class,'update']);
-        Route::post('/user/upload-avatar/{id}',[UserController::class,'uploadAvatar']);
+        Route::post('/logout', [UserController::class, 'logout']);
+        Route::post('/user/update/{id}', [UserController::class, 'update']);
+        Route::post('/user/upload-avatar/{id}', [UserController::class, 'uploadAvatar']);
         //UserBehavior
         Route::post('/user-behaviors/batch', [UserBehaviorController::class, 'batch']);
-        Route::post('/behaviors/approve/user/{id}',[UserBehaviorController::class,'approveUser']);
+        Route::post('/behaviors/approve/user/{id}', [UserBehaviorController::class, 'approveUser']);
 
         //Hotel
-        Route::post('/hotel',[HotelController::class,'store']);
-        Route::put('/hotel/{id}',[HotelController::class,'update']);
-        Route::delete('/hotel/{id}',[HotelController::class,'destroy']);
+        Route::post('/hotel', [HotelController::class, 'store']);
+        Route::put('/hotel/{id}', [HotelController::class, 'update']);
+        Route::delete('/hotel/{id}', [HotelController::class, 'destroy']);
         //Room
-        Route::post('/room',[RoomController::class,'store']);
-        Route::put('/room/{id}',[RoomController::class,'update']);
-        Route::delete('/room/{id}',[RoomController::class,'destroy']);
+        Route::post('/room', [RoomController::class, 'store']);
+        Route::put('/room/{id}', [RoomController::class, 'update']);
+        Route::delete('/room/{id}', [RoomController::class, 'destroy']);
         // Recommendation
         Route::get('/recommendations', [RecommendationController::class, 'getRecommendations']);
         //Booking
-        Route::get('/booking/{id}',[BookingController::class,'show']);
-        Route::get('bookings/user',[BookingController::class,'getBookingUser']);
-        Route::post('/booking',[BookingController::class,'store']);
-        Route::put('/booking/{id}',[BookingController::class,'update']);
-        Route::delete('/booking/{id}',[BookingController::class,'destroy']);
+        Route::get('/booking/{id}', [BookingController::class, 'show']);
+        Route::get('bookings/user', [BookingController::class, 'getBookingUser']);
+        Route::post('/booking', [BookingController::class, 'store']);
+        Route::put('/booking/{id}', [BookingController::class, 'update']);
+        Route::delete('/booking/{id}', [BookingController::class, 'destroy']);
         Route::post('/booking/cancel/{id}', [BookingController::class, 'cancel']);
         // Tạo comment mới
         Route::post('/comments', [CommentController::class, 'store']);
@@ -107,11 +107,11 @@ Route::group(['prefix' => 'auth'], function () {
         Route::post('/vnpay/create-payment', [PaymentController::class, 'createPayment']);
         Route::get('/rooms/{id}/realtime', [BookingController::class, 'getRealtimeQuantity']);
         //WishList
-        Route::get('/wishlist',[WishListController::class,'index']);
-        Route::get('/Mywishlist',[WishListController::class,'show']);
-        Route::post('/wishlist',[WishListController::class,'store']);
-        Route::delete('/wishlist/{id}',[WishListController::class,'destroy']);
-        Route::delete('/remove/like',[WishListController::class,'removeLike']);
+        Route::get('/wishlist', [WishListController::class, 'index']);
+        Route::get('/Mywishlist', [WishListController::class, 'show']);
+        Route::post('/wishlist', [WishListController::class, 'store']);
+        Route::delete('/wishlist/{id}', [WishListController::class, 'destroy']);
+        Route::delete('/remove/like', [WishListController::class, 'removeLike']);
         Route::get('/wishlist/check', [WishListController::class, 'check']);
         //Notification
         Route::get('Allnotifications', [NotificationController::class, 'getAllAdmin']);
@@ -125,17 +125,16 @@ Route::group(['prefix' => 'auth'], function () {
         Route::post('/users/{id}/block', [BlockController::class, 'blockUser']);
         Route::post('/users/{id}/unblock', [BlockController::class, 'unblockUser']);
         //Admin Dashboard
-        Route::get('/dashboard/summary',[DashboardController::class,'summary']);
+        Route::get('/dashboard/summary', [DashboardController::class, 'summary']);
         Route::get('/dashboard/revenue', [DashboardController::class, 'getRevenue']);
-        Route::get('/dashboard/by_month',[DashboardController::class,'getBookingsByMonth']);
+        Route::get('/dashboard/by_month', [DashboardController::class, 'getBookingsByMonth']);
         Route::get('dashboard/bookings-chart', [DashboardController::class, 'getBookingsChart']);
-        Route::get('dashboard/topHotelChart',[DashboardController::class,'getTopHotelsByBookings']);
-        Route::get('dashboard/todayBooking',[DashboardController::class,'getTodayBookings']);
-        Route::get('dashboard/getRoom',[DashboardController::class,'getRoomStats']);
-        Route::get('dashboard/getStats',[DashboardController::class,'getDashboardStats']);
-        Route::get('dashboardStart',[DashboardController::class,'dashboardStats']);
+        Route::get('dashboard/topHotelChart', [DashboardController::class, 'getTopHotelsByBookings']);
+        Route::get('dashboard/todayBooking', [DashboardController::class, 'getTodayBookings']);
+        Route::get('dashboard/getRoom', [DashboardController::class, 'getRoomStats']);
+        Route::get('dashboard/getStats', [DashboardController::class, 'getDashboardStats']);
+        Route::get('dashboardStart', [DashboardController::class, 'dashboardStats']);
         //Discount
-        Route::post('/discount',[DiscountController::class,'store']);
-
+        Route::post('/discount', [DiscountController::class, 'store']);
     });
 });
