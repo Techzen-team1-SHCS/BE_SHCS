@@ -1,11 +1,13 @@
 <?php
 
+use App\Http\Controllers\Api\Admin\AdminHotelController;
 use App\Http\Controllers\Api\BlockController;
 use App\Http\Controllers\Api\BookingController;
 use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\Api\CommentController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\DiscountController;
+use App\Http\Controllers\Api\Hotel_manager\HM_HotelController;
 use App\Http\Controllers\Api\HotelController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\PaymentController;
@@ -49,7 +51,6 @@ Route::group(['prefix' => 'auth'], function () {
     Route::get('hotels/{id}/same-province', [HotelController::class, 'sameProvince']);
     Route::get('/hotel/{id}', [HotelController::class, 'show']);
     Route::post('/import-hotels-excel', [HotelController::class, 'importHotelStyles']);
-    Route::post('/hotels/{hotel}/images', [HotelController::class, 'uploadImages']);
     Route::get('/tophotels', [HotelController::class, 'topHotels']);
     Route::get('/hotel', [HotelController::class, 'index']);
     Route::get('/destinations/count', [HotelController::class, 'destinationsCount']);
@@ -78,15 +79,6 @@ Route::group(['prefix' => 'auth'], function () {
         //UserBehavior
         Route::post('/user-behaviors/batch', [UserBehaviorController::class, 'batch']);
         Route::post('/behaviors/approve/user/{id}', [UserBehaviorController::class, 'approveUser']);
-
-        //Hotel
-        Route::post('/hotel', [HotelController::class, 'store']);
-        Route::put('/hotel/{id}', [HotelController::class, 'update']);
-        Route::delete('/hotel/{id}', [HotelController::class, 'destroy']);
-        //Room
-        Route::post('/room', [RoomController::class, 'store']);
-        Route::put('/room/{id}', [RoomController::class, 'update']);
-        Route::delete('/room/{id}', [RoomController::class, 'destroy']);
         // Recommendation
         Route::get('/recommendations', [RecommendationController::class, 'getRecommendations']);
         //Booking
@@ -136,5 +128,24 @@ Route::group(['prefix' => 'auth'], function () {
         Route::get('dashboardStart', [DashboardController::class, 'dashboardStats']);
         //Discount
         Route::post('/discount', [DiscountController::class, 'store']);
+    });
+    Route::middleware(['auth:api', 'role:1'])->group(function () {
+        //Hotel
+        Route::get('/admin/hotels/pending', [AdminHotelController::class, 'hotelsPending']);
+        Route::post('/admin/hotel/{id}/approve', [AdminHotelController::class, 'approveHotel']);
+        Route::post('/hotel', [HotelController::class, 'store']);
+        Route::put('/hotel/{id}', [HotelController::class, 'update']);
+        Route::delete('/hotel/{id}', [HotelController::class, 'destroy']);
+        //Room
+        Route::post('/room', [RoomController::class, 'store']);
+        Route::put('/room/{id}', [RoomController::class, 'update']);
+        Route::delete('/room/{id}', [RoomController::class, 'destroy']);
+    });
+    Route::middleware(['auth:api','role:2'])->prefix('hotel-manager')->group(function(){
+        Route::get('/hotels', [HM_HotelController::class, 'owner']);
+        Route::post('/hotels', [HM_HotelController::class, 'create_owner']);
+        Route::post('/hotels/{id}', [HM_HotelController::class, 'update_owner']);
+        Route::delete('hotels/{id}',[HM_HotelController::class,'destroy_owner']);
+        Route::post('/hotels/{hotel}/images', [HotelController::class, 'uploadImages']);
     });
 });

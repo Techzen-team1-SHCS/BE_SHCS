@@ -186,13 +186,6 @@ class HotelController extends Controller
                 'per_page'    => $request->get('per_page', 10),
             ]));
 
-            /* ===== LOG HIT / MISS ===== */
-            if (Cache::has($cacheKey)) {
-                Log::info('🔥 CACHE HIT', ['key' => $cacheKey]);
-            } else {
-                Log::warning('❌ CACHE MISS', ['key' => $cacheKey]);
-            }
-
             $response = Cache::remember(
                 $cacheKey,
                 now()->addMinutes(10),
@@ -538,6 +531,7 @@ class HotelController extends Controller
             ], 500);
         }
     }
+    
 
 
 

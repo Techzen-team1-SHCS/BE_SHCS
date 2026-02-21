@@ -2,15 +2,20 @@
 
 namespace App\Models;
 
+use App\Models\Scopes\ApprovedScope;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class Hotel extends Model
 {
+    protected static function booted()
+    {
+        static::addGlobalScope(new ApprovedScope);
+    }
     use HasFactory;
     protected $table='hotels';
     protected $fillable=[
-        'name','province','description','price','name_nearby_place','hotel_class','text','amenities'
+        'name','province','description','price','name_nearby_place','hotel_class','text','amenities','user_id'
     ];
     // protected $casts = [
     //     'amenities' => 'array',
@@ -27,7 +32,10 @@ class Hotel extends Model
     {
         return $this->hasMany(Comment::class, 'maHotel');
     }
-
+    public function user()
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
 
     // Một khách sạn có nhiều phong cách (qua bảng trung gian hotel_styles)
     public function styles()

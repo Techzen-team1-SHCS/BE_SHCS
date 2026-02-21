@@ -21,38 +21,39 @@ use App\Jobs\ProcessBookingAfterCreation;
 class BookingController extends Controller
 {
     public function index()
-{
-    try {
-        // Phiên bản đơn giản nhất nhưng vẫn tối ưu
-        $bookings = Booking::query()
-            ->select('id', 'user_id','room_id', 'check_in', 'check_out', 'total_price', 'status', 'payment_status','created_at','updated_at','quantity')
-            ->with([
-                'room:id,quantity,max_guest',
-                'user'
-            ])
-            ->latest()
-            ->get();
+    {
+        try {
+            // Phiên bản đơn giản nhất nhưng vẫn tối ưu
+            $bookings = Booking::query()
+                ->select('id', 'user_id', 'room_id', 'check_in', 'check_out', 'total_price', 'status', 'payment_status', 'created_at', 'updated_at', 'quantity')
+                ->with([
+                    'room:id,quantity,max_guest',
+                    'user'
+                ])
+                ->latest()
+                ->get();
 
-        return response()->json($bookings);
-
-    } catch (\Exception $e) {
-        return response()->json([
-            'message' => 'Failed to fetch bookings'
-        ], 500);
+            return response()->json($bookings);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Failed to fetch bookings'
+            ], 500);
+        }
     }
-}
-    public function show($id){
-        $booking=Booking::with(['room','room.hotel','room.hotel.images'])->findOrFail($id);
-        if(!$booking){
-          return response()->json([
-            'status'=>404,
-            'error'=>'Booking not found'
-          ]);
+    public function show($id)
+    {
+        $booking = Booking::with(['room', 'room.hotel', 'room.hotel.images'])->findOrFail($id);
+        $this->authorize('view', $booking);
+        if (!$booking) {
+            return response()->json([
+                'status' => 404,
+                'error' => 'Booking not found'
+            ]);
         }
         return response()->json([
-            'status'=>200,
-            'data'=>$booking,
-            'success'=>'Get booking successfully'
+            'status' => 200,
+            'data' => $booking,
+            'success' => 'Get booking successfully'
         ]);
     }
     public function getBookingUser()
@@ -109,7 +110,7 @@ class BookingController extends Controller
             }
 
             $nights = Carbon::parse($request->check_in)
-                            ->diffInDays(Carbon::parse($request->check_out));
+                ->diffInDays(Carbon::parse($request->check_out));
 
             $totalPrice = $room->price * $nights * $request->quantity;
 
@@ -137,7 +138,6 @@ class BookingController extends Controller
                 'data' => $booking,
                 'available_quantity' => $newQuantity
             ], 201);
-
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json([
@@ -147,31 +147,35 @@ class BookingController extends Controller
             ], 500);
         }
     }
-    public function update($id,Request $request){
-        $booking=Booking::with(['user','room'])->findOrFail($id);
+    public function update($id, Request $request)
+    {
+        $booking = Booking::with(['user', 'room'])->findOrFail($id);
+        $this->authorize('update', $booking);
         $request->validate([
             'check_in' => 'sometimes|date|after_or_equal:today',
             'check_out' => 'sometimes|date|after:check_in',
             'total_amount' => 'sometimes|numeric|min:0',
-            'status' => ['sometimes', Rule::in(['pending','confirmed','cancelled','completed'])]
+            'status' => ['sometimes', Rule::in(['pending', 'confirmed', 'cancelled', 'completed'])]
         ]);
         $booking->update($request->all());
         return response()->json([
-            'status'=>'success',
-            'data'=>$booking,
-            'message'=>'Cập nhật Booking thành công'
+            'status' => 'success',
+            'data' => $booking,
+            'message' => 'Cập nhật Booking thành công'
         ]);
     }
-    public function destroy($id){
-        $booking=Booking::find($id);
-        if(!$booking){
+    public function destroy($id)
+    {
+        $booking = Booking::find($id);
+        $this->authorize('delete', $booking);
+        if (!$booking) {
             return response()->json([
-                'message'=>'Booking not found'
-            ],404);
+                'message' => 'Booking not found'
+            ], 404);
         }
         $booking->delete();
         return response()->json([
-            'message'=>'Booking deleted'
+            'message' => 'Booking deleted'
         ]);
     }
     public function cancel($id)
@@ -180,7 +184,7 @@ class BookingController extends Controller
 
         try {
             $booking = Booking::with('room', 'user')->find($id);
-
+            $this->authorize('delete', $booking);
             if (!$booking) {
                 return response()->json([
                     'success' => false,
@@ -246,14 +250,14 @@ class BookingController extends Controller
                 $booking->user->wallet_balance += $refundAmount;
                 $booking->user->save();
             }
-            if($booking->status==='cancelled'){
+            if ($booking->status === 'cancelled') {
                 NotificationHelper::send(
                     $booking->user_id,
                     'cancel_booking',
                     'Hủy phòng thành công',
                     "Booking #{$booking->id} của bạn đã được hủy thành công. Phí hủy: "
-                    . number_format($cancelFee, 0, ',', '.') . " VND. Số tiền hoàn lại: "
-                    . number_format($refundAmount, 0, ',', '.') . " VND.",
+                        . number_format($cancelFee, 0, ',', '.') . " VND. Số tiền hoàn lại: "
+                        . number_format($refundAmount, 0, ',', '.') . " VND.",
                     ['booking_id' => $booking->id]
                 );
             }
@@ -272,7 +276,6 @@ class BookingController extends Controller
                     'available_quantity' => $newQuantity,
                 ]
             ]);
-
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error("Lỗi hủy booking #{$id}: " . $e->getMessage());
@@ -284,14 +287,12 @@ class BookingController extends Controller
             ], 500);
         }
     }
-
-
     public function processCancelledBookings()
     {
         $bookings = Booking::where('status', 'cancelled')
-                            ->where('payment_status', 'paid') // chỉ quan tâm booking đã thanh toán
-                            ->whereNull('cancel_fee') // chưa tính phí hủy
-                            ->get();
+            ->where('payment_status', 'paid') // chỉ quan tâm booking đã thanh toán
+            ->whereNull('cancel_fee') // chưa tính phí hủy
+            ->get();
 
         foreach ($bookings as $booking) {
             try {
@@ -326,8 +327,8 @@ class BookingController extends Controller
 
                 // Cập nhật payment liên quan
                 $payment = Payment::where('booking_id', $booking->id)
-                                ->where('status', 'paid')
-                                ->first();
+                    ->where('status', 'paid')
+                    ->first();
                 // --- Thêm ví nội bộ cho user ---
                 if ($refundAmount > 0) {
                     $user = $booking->user;
@@ -339,7 +340,6 @@ class BookingController extends Controller
                 }
 
                 DB::commit();
-
             } catch (\Exception $e) {
                 DB::rollBack();
                 Log::error("Lỗi xử lý hoàn tiền booking #{$booking->id}: " . $e->getMessage());
@@ -351,10 +351,7 @@ class BookingController extends Controller
             'message' => 'Đã xử lý các booking hủy theo quy định'
         ]);
     }
-
-
-
-      public function getRealtimeQuantity($id)
+    public function getRealtimeQuantity($id)
     {
         $room = Room::find($id);
         if (!$room) {
@@ -370,5 +367,4 @@ class BookingController extends Controller
             'last_updated' => now()->toISOString()
         ]);
     }
-
 }
