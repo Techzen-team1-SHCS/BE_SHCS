@@ -57,7 +57,24 @@ class HotelPolicy
         ? Response::allow()
         : Response::deny('Bạn không có quyền truy cập');
     }
-
+    public function viewRoom(User $user,Hotel $hotel)
+    {
+        return $user->role === 2 && $hotel->user_id === $user->id
+        ? Response::allow()
+        : Response::deny('Bạn không có quyền xem room của hotel này');
+    }
+    public function createRoom(User $user,Hotel $hotel)
+    {
+        return $user->role === 2 && $hotel->user_id === $user->id
+        ? Response::allow()
+        : Response::deny('Bạn không có quyền tạo room cho hotel này');
+    }
+    public function viewHotelBooking(User $user,Hotel $hotel)
+    {
+        return $user->role === 2 && $hotel->user_id === $user->id
+        ? Response::allow()
+        : Response::deny('Bạn không có quyền xem booking của hotel này');
+    }
     /**
      * Determine whether the user can restore the model.
      */

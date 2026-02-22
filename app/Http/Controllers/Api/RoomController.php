@@ -120,7 +120,6 @@ class RoomController extends Controller
                 'data'=>$room
             ]);
         } catch (\Throwable $th) {
-            Log::error("Lỗi khi thêm phòng".$th->getMessage());
             return response()->json([
                 'status'=>500,
                 'message'=>'Không Thể thêm phòng vui lòng thử lại '
