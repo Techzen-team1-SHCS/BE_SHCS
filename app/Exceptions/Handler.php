@@ -72,7 +72,7 @@ class Handler extends ExceptionHandler
             Log::error('Lỗi DB: ' . $exception->getMessage());
             return response()->json([
                 'status' => false,
-                'message' => 'Lỗi cơ sở dữ liệu, vui lòng thử lại sau.',
+                'message' => $exception->getMessage(),
             ], 500);
         }
 
