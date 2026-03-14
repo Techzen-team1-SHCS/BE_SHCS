@@ -14,3 +14,7 @@ php artisan route:cache
 
 echo "Running migrations..."
 php artisan migrate --force
+
+echo "create folder..."
+mkdir -p storage/logs
+chmod -R 775 storage
