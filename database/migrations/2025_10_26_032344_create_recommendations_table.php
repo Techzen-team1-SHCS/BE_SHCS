@@ -11,6 +11,9 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (Schema::hasTable('recommendations')) {
+            Schema::dropIfExists('recommendations');
+        }
         Schema::create('recommendations', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained('users');
