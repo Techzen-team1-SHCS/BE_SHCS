@@ -39,7 +39,9 @@ class Handler extends ExceptionHandler
                 'message' => 'Dữ liệu không hợp lệ',
                 'errors' => $exception->errors(),
             ], 422);
+
         }
+
 
         // 🔹 Không đăng nhập
         if ($exception instanceof AuthenticationException) {
@@ -67,6 +69,7 @@ class Handler extends ExceptionHandler
 
         // 🔹 Lỗi truy vấn DB
         if ($exception instanceof QueryException) {
+            dd($exception);
             Log::error('Lỗi DB: ' . $exception->getMessage());
             return response()->json([
                 'status' => false,
