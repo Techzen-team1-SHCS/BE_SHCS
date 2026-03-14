@@ -69,7 +69,6 @@ class Handler extends ExceptionHandler
 
         // 🔹 Lỗi truy vấn DB
         if ($exception instanceof QueryException) {
-            dd($exception);
             Log::error('Lỗi DB: ' . $exception->getMessage());
             return response()->json([
                 'status' => false,
