@@ -24,8 +24,12 @@ return new class extends Migration
             }
         });
 
-        // Add FULLTEXT index
-        DB::statement('ALTER TABLE hotels ADD FULLTEXT KEY idx_name_description (name, description)');
+        // Add FULLTEXT index if not exists
+        try {
+            DB::statement('ALTER TABLE hotels ADD FULLTEXT KEY idx_name_description (name, description)');
+        } catch (\Exception $e) {
+            // Index might already exist
+        }
     }
 
     /**
@@ -34,8 +38,20 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('hotels', function (Blueprint $table) {
-            $table->dropColumn(['text', 'amenities', 'status']);
-            $table->dropIndex('idx_name_description');
+            $columns = [];
+            if (Schema::hasColumn('hotels', 'text')) $columns[] = 'text';
+            if (Schema::hasColumn('hotels', 'amenities')) $columns[] = 'amenities';
+            if (Schema::hasColumn('hotels', 'status')) $columns[] = 'status';
+            
+            if (!empty($columns)) {
+                $table->dropColumn($columns);
+            }
+            
+            try {
+                $table->dropIndex('idx_name_description');
+            } catch (\Exception $e) {
+                // Index might not exist
+            }
         });
     }
 };

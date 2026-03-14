@@ -1,7 +1,7 @@
 <?php
 
 return [
-    'paths' => ['api/*', 'sanctum/csrf-cookie', 'broadcasting/auth'],
+    'paths' => ['api/*', 'sanctum/csrf-cookie', 'broadcasting/auth', 'oauth/*'],
     'allowed_methods' => ['*'],
     'allowed_origins' => [
         env('FRONTEND_URL'),

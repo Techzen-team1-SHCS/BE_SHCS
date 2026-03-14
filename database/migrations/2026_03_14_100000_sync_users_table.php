@@ -27,6 +27,12 @@ return new class extends Migration
             if (!Schema::hasColumn('users', 'image')) {
                 $table->string('image')->nullable()->after('phone');
             }
+            if (!Schema::hasColumn('users', 'wallet_balance')) {
+                $table->decimal('wallet_balance', 15, 2)->notNull()->default(0.00);
+            }
+            if (!Schema::hasColumn('users', 'is_blocked')) {
+                $table->tinyInteger('is_blocked')->notNull()->default(0);
+            }
         });
     }
 
@@ -36,7 +42,18 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('users', function (Blueprint $table) {
-            $table->dropColumn(['role', 'gender', 'birth', 'address', 'image']);
+            $columns = [];
+            if (Schema::hasColumn('users', 'role')) $columns[] = 'role';
+            if (Schema::hasColumn('users', 'gender')) $columns[] = 'gender';
+            if (Schema::hasColumn('users', 'birth')) $columns[] = 'birth';
+            if (Schema::hasColumn('users', 'address')) $columns[] = 'address';
+            if (Schema::hasColumn('users', 'image')) $columns[] = 'image';
+            if (Schema::hasColumn('users', 'wallet_balance')) $columns[] = 'wallet_balance';
+            if (Schema::hasColumn('users', 'is_blocked')) $columns[] = 'is_blocked';
+            
+            if (!empty($columns)) {
+                $table->dropColumn($columns);
+            }
         });
     }
 };

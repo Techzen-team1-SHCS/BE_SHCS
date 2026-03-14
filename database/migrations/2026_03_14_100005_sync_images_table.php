@@ -11,21 +11,35 @@ return new class extends Migration
      */
     public function up(): void
     {
-        // Drop old table structure and recreate to match SQL
-        // This is safer if the data is not critical, or we can transform it.
-        // Given the instructions, we want to match the SQL file exactly.
-        
-        Schema::dropIfExists('images');
-        
-        Schema::create('images', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedBigInteger('hotel_id')->nullable();
-            $table->unsignedBigInteger('room_id')->nullable();
-            $table->string('image_url');
-            $table->timestamps();
-            
-            $table->foreign('hotel_id')->references('id')->on('hotels')->onDelete('cascade');
-            $table->foreign('room_id')->references('id')->on('rooms')->onDelete('cascade');
+        Schema::table('images', function (Blueprint $table) {
+            // Nếu có cột image_url thì đổi tên lại thành url
+            if (Schema::hasColumn('images', 'image_url') && !Schema::hasColumn('images', 'url')) {
+                $table->renameColumn('image_url', 'url');
+            }
+
+            // Nếu không có url thì tạo mới
+            if (!Schema::hasColumn('images', 'url')) {
+                $table->string('url')->nullable()->after('id');
+            }
+
+            // Đảm bảo có cột 'type' và 'reference_id'
+            if (!Schema::hasColumn('images', 'type')) {
+                $table->string('type')->nullable()->after('url');
+            }
+
+            if (!Schema::hasColumn('images', 'reference_id')) {
+                $table->unsignedBigInteger('reference_id')->nullable()->after('type');
+            }
+
+            // Xóa các cột thừa nếu đã lỡ tạo ở các lần migrate trước
+            if (Schema::hasColumn('images', 'hotel_id')) {
+                $table->dropForeign(['hotel_id']);
+                $table->dropColumn('hotel_id');
+            }
+            if (Schema::hasColumn('images', 'room_id')) {
+                $table->dropForeign(['room_id']);
+                $table->dropColumn('room_id');
+            }
         });
     }
 
@@ -34,13 +48,8 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('images');
-        Schema::create('images', function (Blueprint $table) {
-            $table->id();
-            $table->string('url');
-            $table->string('type');
-            $table->unsignedBigInteger('reference_id')->nullable();
-            $table->timestamps();
+        Schema::table('images', function (Blueprint $table) {
+            // Không thực hiện gì đặc biệt khi rollback để giữ cấu trúc gốc
         });
     }
 };
