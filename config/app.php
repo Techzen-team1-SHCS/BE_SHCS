@@ -17,6 +17,8 @@ return [
 
     'name' => env('APP_NAME', 'Laravel'),
 
+    'front_end_url' => env('FRONT_END_URL'),
+
     /*
     |--------------------------------------------------------------------------
     | Application Environment

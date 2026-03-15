@@ -20,6 +20,9 @@ return [
         'endpoint' => env('MAILGUN_ENDPOINT', 'api.mailgun.net'),
         'scheme' => 'https',
     ],
+    'brevo' => [
+        'dsn' => env('MAILER_DSN', 'brevo+api://' . env('BREVO_API_KEY')),
+    ],
 
     'postmark' => [
         'token' => env('POSTMARK_TOKEN'),
