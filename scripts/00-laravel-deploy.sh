@@ -26,4 +26,7 @@ echo "Create folders..."
 mkdir -p storage/logs
 chmod -R 775 storage bootstrap/cache
 
+echo "Starting queue worker..."
+php artisan queue:work --tries=3 --timeout=90 &
+
 echo "Starting services..."
