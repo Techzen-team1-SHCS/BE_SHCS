@@ -13,9 +13,6 @@ php artisan passport:keys --force
 echo "Caching config..."
 php artisan config:cache
 
-echo "Clearing config..."
-php artisan config:clear
-
 echo "Caching routes..."
 php artisan route:cache
 
@@ -28,5 +25,8 @@ chmod -R 775 storage bootstrap/cache
 
 echo "Starting queue worker..."
 php artisan queue:work --tries=3 --timeout=90 &
+
+echo "Starting Reverb..."
+php artisan reverb:start --host=0.0.0.0 --port=$PORT &
 
 echo "Starting services..."
