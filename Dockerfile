@@ -1,12 +1,6 @@
 FROM richarvey/nginx-php-fpm:3.1.6
 
-# copy project vào container
-COPY . /var/www/html
-
-WORKDIR /var/www/html
-
-# cấp quyền chạy script
-RUN chmod +x /var/www/html/start.sh
+COPY . .
 
 # Image config
 ENV SKIP_COMPOSER 1
@@ -23,5 +17,4 @@ ENV LOG_CHANNEL stderr
 # Allow composer to run as root
 ENV COMPOSER_ALLOW_SUPERUSER 1
 
-# start container
-CMD ["/var/www/html/start.sh"]
+CMD ["/start.sh"]
