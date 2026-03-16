@@ -26,4 +26,7 @@ echo "Starting queue worker..."
 php artisan queue:work --tries=3 --timeout=90 &
 
 echo "Starting Reverb..."
-php artisan reverb:start --host=0.0.0.0 --port=$PORT
+php artisan reverb:start --host=0.0.0.0 --port=$PORT &
+
+echo "Starting nginx/php-fpm..."
+exec /usr/bin/supervisord -n -c /etc/supervisor/supervisord.conf
