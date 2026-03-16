@@ -1,34 +1,24 @@
-FROM php:8.3-cli
+FROM composer:2 AS vendor
 
 WORKDIR /var/www/html
 
-ENV COMPOSER_ALLOW_SUPERUSER=1
+COPY composer.json composer.lock ./
+RUN composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist --no-scripts --ignore-platform-reqs
+
+COPY . .
+RUN composer dump-autoload --optimize --no-dev --no-interaction
+
+FROM php:8.3-cli
+
+WORKDIR /var/www/html
 
 RUN apt-get update && apt-get install -y \
     git \
     unzip \
     libzip-dev \
-    libicu-dev \
-    libxml2-dev \
-    libonig-dev \
-    && docker-php-ext-install -j$(nproc) \
-       bcmath \
-       intl \
-       mbstring \
-       pcntl \
-       pdo \
-       pdo_mysql \
-       xml \
-       zip \
+    && docker-php-ext-install pdo pdo_mysql pcntl zip \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+COPY --from=vendor /var/www/html /var/www/html
 
-COPY composer.json composer.lock ./
-RUN composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist --no-scripts
-
-COPY . .
-
-RUN composer dump-autoload --optimize --no-dev --no-interaction
-
-CMD php artisan reverb:start --host=0.0.0.0 --port=$PORT
+CMD ["sh", "-c", "php artisan reverb:start --host=0.0.0.0 --port=${PORT:-8080}"]
