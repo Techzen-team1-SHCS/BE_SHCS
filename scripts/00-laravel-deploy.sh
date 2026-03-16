@@ -9,14 +9,14 @@ php artisan key:generate --force || true
 echo "Creating passport keys..."
 php artisan passport:keys --force || true
 
-echo "Running migrations..."
-php artisan migrate --force || true
-
 echo "Caching config..."
 php artisan config:cache
 
 echo "Caching routes..."
 php artisan route:cache
+
+echo "Running migrations..."
+php artisan migrate --force || true
 
 echo "Create folders..."
 mkdir -p storage/logs
@@ -26,7 +26,6 @@ echo "Starting queue worker..."
 php artisan queue:work --tries=3 --timeout=90 &
 
 echo "Starting Reverb..."
-php artisan reverb:start --host=0.0.0.0 --port=$PORT &
+php artisan reverb:start --host=127.0.0.1 --port=8080 &
 
-echo "Starting nginx/php-fpm..."
-exec /usr/bin/supervisord -n -c /etc/supervisor/supervisord.conf
+echo "Services started"
