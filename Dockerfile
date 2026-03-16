@@ -1,13 +1,9 @@
 FROM richarvey/nginx-php-fpm:3.1.6
 
-COPY . /var/www/html
-WORKDIR /var/www/html
-
 # Install extension needed for Reverb
 RUN docker-php-ext-install pcntl
 
 # Make start script executable
-RUN chmod +x /var/www/html/start.sh
 
 # Image config
 ENV SKIP_COMPOSER=1
