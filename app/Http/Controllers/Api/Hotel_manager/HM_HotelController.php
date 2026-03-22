@@ -18,6 +18,7 @@ use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class HM_HotelController extends Controller
 {
@@ -40,6 +41,33 @@ class HM_HotelController extends Controller
             'data'    => $hotels
         ]);
     }
+
+    public function show_owner($id)
+    {
+        $user = Auth::user();
+
+        $hotel = Hotel::withoutGlobalScope(ApprovedScope::class)
+            ->with(['images', 'styles'])
+            ->where('id', $id)
+            ->where('user_id', $user->id)
+            ->first();
+
+        if (!$hotel) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Không tìm thấy dữ liệu yêu cầu',
+            ], 404);
+        }
+
+        $this->authorize('view', $hotel);
+
+        return response()->json([
+            'status'  => true,
+            'message' => 'Chi tiết khách sạn',
+            'data'    => $hotel
+        ]);
+    }
+
     public function create_owner(StoreHotelRequest $request)
     {
         $this->authorize('create',Hotel::class);
@@ -114,7 +142,7 @@ class HM_HotelController extends Controller
     public function update_owner(UpdateHotelRequest $request, $id)
     {
 
-        $hotel = Hotel::findOrFail($id);
+        $hotel = Hotel::withoutGlobalScope(ApprovedScope::class)->findOrFail($id);
         $user = Auth()->user();
 
         $this->authorize('update', $hotel);
@@ -195,7 +223,7 @@ class HM_HotelController extends Controller
     }
     public function destroy_owner($id)
     {
-        $hotel = Hotel::findOrFail($id);
+        $hotel = Hotel::withoutGlobalScope(ApprovedScope::class)->findOrFail($id);
         $this->authorize('delete',$hotel);
         DB::beginTransaction();
         try {
