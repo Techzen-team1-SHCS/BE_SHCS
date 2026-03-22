@@ -146,6 +146,7 @@ Route::group(['prefix' => 'auth'], function () {
     });
     Route::middleware(['auth:api','role:2'])->prefix('hotel-manager')->group(function(){
         Route::get('/hotels', [HM_HotelController::class, 'owner']);
+        Route::get('/hotels/{id}', [HM_HotelController::class, 'show_owner']);
         Route::post('/hotels', [HM_HotelController::class, 'create_owner']);
         Route::post('/hotels/{id}', [HM_HotelController::class, 'update_owner']);
         Route::delete('hotels/{id}',[HM_HotelController::class,'destroy_owner']);
