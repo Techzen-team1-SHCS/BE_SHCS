@@ -15,7 +15,7 @@ class Hotel extends Model
     use HasFactory;
     protected $table='hotels';
     protected $fillable=[
-        'name','province','description','price','name_nearby_place','hotel_class','text','amenities','user_id'
+        'name','province','description','price','name_nearby_place','hotel_class','text','amenities','user_id','status'
     ];
     // protected $casts = [
     //     'amenities' => 'array',
