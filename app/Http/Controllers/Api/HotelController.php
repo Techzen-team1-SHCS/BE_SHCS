@@ -475,7 +475,9 @@ class HotelController extends Controller
 
       public function uploadImages(Request $request, $hotelId)
     {
-        $hotel = Hotel::find($hotelId);
+        // Tắt global scope approved để hotel đang pending vẫn tìm được
+        $hotel = Hotel::withoutGlobalScope(\App\Models\Scopes\ApprovedScope::class)->find($hotelId);
+
         if (!$hotel) {
             return response()->json([
                 'status' => 'error',

@@ -135,6 +135,7 @@ Route::group(['prefix' => 'auth'], function () {
         //Hotel
         Route::get('/admin/hotels/pending', [AdminHotelController::class, 'hotelsPending']);
         Route::post('/admin/hotel/{id}/approve', [AdminHotelController::class, 'approveHotel']);
+        Route::post('/admin/hotel/{id}/reject', [AdminHotelController::class, 'rejectHotel']);
         Route::post('/hotel', [HotelController::class, 'store']);
         Route::put('/hotel/{id}', [HotelController::class, 'update']);
         Route::delete('/hotel/{id}', [HotelController::class, 'destroy']);

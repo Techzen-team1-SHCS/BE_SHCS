@@ -23,13 +23,18 @@ class NotificationController extends Controller
         ]);
     }
     public function getAllAdmin(){
-        $notifications=Notification::all();
+        $adminId = Auth::id();
+        $notifications = Notification::where('user_id', $adminId)
+            ->orderBy('created_at', 'desc')
+            ->get();
+
         if($notifications->isEmpty()){
             return response()->json([
                 'status'=>404,
                 'message'=>'Not found notification'
             ]);
         }
+
         return response()->json([
             'status'=>200,
             'data'=>$notifications
