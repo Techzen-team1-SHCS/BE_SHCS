@@ -41,6 +41,7 @@ class UserController extends Controller
             'email'    => $validated['email'],
             'phone'    => $validated['phone'] ?? '',
             'password' => Hash::make($validated['password']),
+            'role'     => $validated['role'] ?? 0, // Default role = 1 (user), role = 2 (hotel manager)
         ]);
         NotificationHelper::send(
             $user->id,
