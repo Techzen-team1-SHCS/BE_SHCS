@@ -94,7 +94,29 @@ class HM_HotelController extends Controller
             }
 
             DB::commit();
+            $uploadedImages = [];
+            if ($request->hasFile('images')) {
+                foreach ($request->file('images') as $file) {
+                    $uploadedFile = Cloudinary::uploadFile($file->getRealPath(), [
+                        'folder' => 'hotels/' . $hotel->id .'webp',
+                        'format'         => 'webp', // 💥 tự động chuyển sang webp
+                        'transformation' => [
+                            'quality' => 'auto',   // tự tối ưu chất lượng
+                            'fetch_format' => 'webp'
+                        ],
+                    ]);
 
+                    $imageUrl = $uploadedFile->getSecurePath();
+
+                    Image::create([
+                        'url'      => $imageUrl,
+                        'reference_id' => $hotel->id,
+                        'type'=>'hotel' // giữ đơn giản, dùng hotel_id
+                    ]);
+
+                    $uploadedImages[] = $imageUrl;
+                }
+            }
             /*
             =========================
             TẠO NOTIFICATION CHO ADMIN
@@ -127,7 +149,9 @@ class HM_HotelController extends Controller
             return response()->json([
                 'status' => true,
                 'message' => 'Hotel created and waiting approval',
-                'data' => $hotel
+                'data' => $hotel,
+                'images'=>$uploadedImages,
+                'styles' => $validated['styles'] ?? [],
             ],201);
 
         } catch (\Throwable $e) {
