@@ -20,7 +20,8 @@ class UserRequest extends FormRequest
             'phone' => [
                 'required',
                 'regex:/^[0-9]{9,11}$/'
-            ]
+            ],
+            'role' => 'nullable|integer|in:0,1,2'
         ];
     }
 
