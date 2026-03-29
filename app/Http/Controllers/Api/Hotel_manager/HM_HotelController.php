@@ -81,12 +81,13 @@ class HM_HotelController extends Controller
             $hotel = Hotel::create([
                 'name'              => $validated['name'],
                 'province'          => $validated['province'],
-                'description'       => $validated['description'],
+                'description'       => strip_tags($validated['description']),
                 'price'             => $validated['price'],
                 'name_nearby_place' => $validated['name_nearby_place'],
                 'hotel_class'       => $validated['hotel_class'],
                 'user_id'           => $user->id,
-                'status'            => 'pending'
+                'status'            => 'pending',
+                'text'              => $validated['text']
             ]);
 
             if(!empty($validated['styles'])){

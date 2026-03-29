@@ -35,14 +35,23 @@ class UserController extends Controller
     {
         $validated = $request->validated();
 
-        // 1️⃣ Tạo user
+        // 1️⃣ Tạo user (Thao tác DB nhanh, < 0.1s)
         $user = User::create([
             'name'     => $validated['name'],
             'email'    => $validated['email'],
             'phone'    => $validated['phone'] ?? '',
             'password' => Hash::make($validated['password']),
-            'role'     => $validated['role'] ?? 0, // Default role = 1 (user), role = 2 (hotel manager)
+            'role'     => $validated['role'] ?? 0,
         ]);
+
+        // 2️⃣ Xử lý Avatar (Tách ra hàm riêng cho sạch Controller)
+        $avatarUrl = $this->handleAvatarUpload($request, $user->id);
+
+        // 3️⃣ Gửi Email VÀO HÀNG ĐỢI (Chạy ngầm - Không bắt user đợi)
+        // 🚨 QUAN TRỌNG: Thay send() bằng queue()
+        Mail::to($user->email)->queue(new RegisterEmail($user));
+
+        // 4️⃣ Gửi thông báo in-app
         NotificationHelper::send(
             $user->id,
             'Registration_Successful',
@@ -50,42 +59,56 @@ class UserController extends Controller
             "Chào mừng {$user->name} đã đăng ký thành công tài khoản."
         );
 
-        // 2️⃣ Upload avatar lên ImgBB nếu có
-        $avatarUrl = '';
-        if ($request->hasFile('avatar') && $request->file('avatar')->isValid()) {
+        // 5️⃣ Trả về Response ngay lập tức
+        return response()->json([
+            'status'     => 'success',
+            'data'       => $user,
+            'avatar_url' => $avatarUrl
+        ], 201);
+    }
+
+    /**
+     * Hàm private xử lý riêng việc upload ảnh lên ImgBB
+     */
+    private function handleAvatarUpload($request, $userId)
+    {
+        if (!$request->hasFile('avatar') || !$request->file('avatar')->isValid()) {
+            return '';
+        }
+
+        try {
             $file = $request->file('avatar');
             $imgData = base64_encode(file_get_contents($file->getRealPath()));
             $apiKey = env('IMGBB_API_KEY');
 
             $ch = curl_init();
-            curl_setopt($ch, CURLOPT_URL, 'https://api.imgbb.com/1/upload?key='.$apiKey);
+            curl_setopt($ch, CURLOPT_URL, 'https://api.imgbb.com/1/upload?key=' . $apiKey);
             curl_setopt($ch, CURLOPT_POST, 1);
             curl_setopt($ch, CURLOPT_POSTFIELDS, ['image' => $imgData]);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 5); // Set timeout tối đa 5s để tránh treo server
 
             $response = curl_exec($ch);
             curl_close($ch);
 
             $data = json_decode($response, true);
             $avatarUrl = $data['data']['url'] ?? '';
+
+            if ($avatarUrl) {
+                Image::create([
+                    'url'          => $avatarUrl,
+                    'type'         => 'avatar',
+                    'reference_id' => $userId,
+                ]);
+            }
+
+            return $avatarUrl;
+
+        } catch (\Exception $e) {
+            // Log lỗi nếu ImgBB sập, không làm chết luồng đăng ký của user
+            \Log::error('ImgBB Upload Error: ' . $e->getMessage());
+            return '';
         }
-
-        // 3️⃣ Lưu avatar vào bảng images
-        if ($avatarUrl) {
-            Image::create([
-            'url' => $avatarUrl,
-            'type' => 'avatar',
-            'reference_id' => $user->id,
-        ]);
-
-        }
-        Mail::to($user->email)->send(new RegisterEmail($user));
-
-        return response()->json([
-            'status' => 'success',
-            'data' => $user,
-            'avatar_url' => $avatarUrl
-        ], 201);
     }
     public function index()
     {
