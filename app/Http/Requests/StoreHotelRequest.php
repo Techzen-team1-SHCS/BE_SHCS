@@ -22,9 +22,12 @@ class StoreHotelRequest extends FormRequest
             'name'              => 'required|string|max:255',
             'province'          => 'required|string|max:255',
             'description'       => 'required|string',
+            'text'              => 'required|string',
             'price'             => 'required|numeric|min:0',
             'name_nearby_place' => 'required|string|max:255',
             'hotel_class'       => 'required|decimal:1',
+            'amenities'         => 'nullable|array',
+            'amenities.*'       => 'string',
             'styles.*'          => 'nullable|integer|exists:styles,id',
             'images'            => 'array',   // ✅ nhiều ảnh
             'images.*'          => 'image|mimes:jpg,jpeg,png,webp,gif|max:2048'

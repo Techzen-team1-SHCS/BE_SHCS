@@ -25,6 +25,7 @@ class UpdateHotelRequest extends FormRequest
             'name'              => 'nullable|string|max:255',
             'province'          => 'nullable|string|max:255',
             'description'       => 'nullable|string',
+            'text'              => 'nullable|string',
             'price'             => 'nullable|numeric|min:0',
             'name_nearby_place' => 'nullable|string|max:255',
             'hotel_class'       => 'nullable|decimal:1',
