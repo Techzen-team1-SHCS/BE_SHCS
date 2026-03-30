@@ -13,6 +13,7 @@ use App\Models\Notification;
 use App\Models\Scopes\ApprovedScope;
 use App\Models\User;
 use App\Notifications\HotelPendingApprovalNotification;
+use Carbon\Carbon;
 use CloudinaryLabs\CloudinaryLaravel\Facades\Cloudinary;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
@@ -28,10 +29,23 @@ class HM_HotelController extends Controller
         $this->authorize('viewAny', Hotel::class);
 
         $user = Auth::user();
+        $today = Carbon::today();
 
         $hotels = Hotel::withoutGlobalScope(ApprovedScope::class)
             ->where('user_id', $user->id)
-            ->with(['images','styles'])
+            ->with([
+                'images',
+                'styles',
+                'rooms' => function ($q) {
+                    $q->select('id', 'hotel_id', 'availability_status');
+                }
+            ])
+            ->withSum([
+                'bookings as revenue' => function ($query) use ($today) {
+                    $query->whereDate('bookings.created_at', $today);
+                }
+            ], 'total_price')
+            ->withCount('roomNumbers as totalRooms')
             ->latest()
             ->get();
 
@@ -70,7 +84,7 @@ class HM_HotelController extends Controller
 
     public function create_owner(StoreHotelRequest $request)
     {
-        $this->authorize('create',Hotel::class);
+        $this->authorize('create', Hotel::class);
 
         $validated = $request->validated();
         DB::beginTransaction();
@@ -91,7 +105,7 @@ class HM_HotelController extends Controller
                 'text'              => $validated['text']
             ]);
 
-            if(!empty($validated['styles'])){
+            if (!empty($validated['styles'])) {
                 $hotel->styles()->sync($validated['styles']);
             }
 
@@ -100,7 +114,7 @@ class HM_HotelController extends Controller
             if ($request->hasFile('images')) {
                 foreach ($request->file('images') as $file) {
                     $uploadedFile = Cloudinary::uploadFile($file->getRealPath(), [
-                        'folder' => 'hotels/' . $hotel->id .'webp',
+                        'folder' => 'hotels/' . $hotel->id . 'webp',
                         'format'         => 'webp', // 💥 tự động chuyển sang webp
                         'transformation' => [
                             'quality' => 'auto',   // tự tối ưu chất lượng
@@ -113,7 +127,7 @@ class HM_HotelController extends Controller
                     Image::create([
                         'url'      => $imageUrl,
                         'reference_id' => $hotel->id,
-                        'type'=>'hotel' // giữ đơn giản, dùng hotel_id
+                        'type' => 'hotel' // giữ đơn giản, dùng hotel_id
                     ]);
 
                     $uploadedImages[] = $imageUrl;
@@ -125,7 +139,7 @@ class HM_HotelController extends Controller
             =========================
             */
 
-            $admins = User::where('role','1')->get();
+            $admins = User::where('role', '1')->get();
 
             foreach ($admins as $admin) {
                 Notification::create([
@@ -152,17 +166,16 @@ class HM_HotelController extends Controller
                 'status' => true,
                 'message' => 'Hotel created and waiting approval',
                 'data' => $hotel,
-                'images'=>$uploadedImages,
+                'images' => $uploadedImages,
                 'styles' => $validated['styles'] ?? [],
-            ],201);
-
+            ], 201);
         } catch (\Throwable $e) {
             DB::rollBack();
 
             return response()->json([
                 'status' => false,
                 'message' => $e->getMessage()
-            ],500);
+            ], 500);
         }
     }
     public function update_owner(UpdateHotelRequest $request, $id)
@@ -221,7 +234,6 @@ class HM_HotelController extends Controller
                         'type'         => 'hotel',
                         'reference_id' => $hotel->id,
                     ]);
-
                 }
             }
 
@@ -233,7 +245,6 @@ class HM_HotelController extends Controller
                 'status' => 'success',
                 'hotel'  => $hotel
             ], 200);
-
         } catch (\Exception $e) {
             DB::rollBack();
 
@@ -252,15 +263,15 @@ class HM_HotelController extends Controller
     public function destroy_owner($id)
     {
         $hotel = Hotel::withoutGlobalScope(ApprovedScope::class)->findOrFail($id);
-        $this->authorize('delete',$hotel);
+        $this->authorize('delete', $hotel);
         DB::beginTransaction();
         try {
             // Xóa styles
             Hotel_Style::where('hotel_id', $hotel->id)->delete();
             // Xóa ảnh
             $images = Image::where('reference_id', $hotel->id)
-            ->where('type', 'hotel')
-            ->get();
+                ->where('type', 'hotel')
+                ->get();
 
             foreach ($images as $image) {
                 if (!empty($image->public_id)) {

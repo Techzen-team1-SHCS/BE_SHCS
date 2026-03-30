@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\DiscountController;
 use App\Http\Controllers\Api\Hotel_manager\HM_BookingController;
 use App\Http\Controllers\Api\Hotel_manager\HM_HotelController;
 use App\Http\Controllers\Api\Hotel_manager\HM_RoomController;
+use App\Http\Controllers\Api\Hotel_manager\HM_RoomNumberController;
 use App\Http\Controllers\Api\HotelController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\PaymentController;
@@ -157,6 +158,12 @@ Route::group(['prefix' => 'auth'], function () {
         Route::post('/rooms', [HM_RoomController::class, 'store_room']);
         Route::post('/rooms/{id}', [HM_RoomController::class, 'update_room']);
         Route::delete('rooms/{id}',[HM_RoomController::class,'delete_room']);
+
+        // room_numbers
+        Route::get('/rooms/{room}/room-numbers', [HM_RoomNumberController::class, 'index_room_numbers']);
+        Route::post('/rooms/{room}/room-numbers', [HM_RoomNumberController::class, 'store_room_numbers']);
+        Route::put('/room-numbers/{id}', [HM_RoomNumberController::class, 'update_room_number']);
+        Route::delete('/room-numbers/{id}', [HM_RoomNumberController::class, 'delete_room_number']);
         
         //booking
         Route::post('/bookings', [HM_BookingController::class, 'bookings']);

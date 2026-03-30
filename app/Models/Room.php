@@ -8,11 +8,11 @@ use Illuminate\Database\Eloquent\Model;
 class Room extends Model
 {
     use HasFactory;
-    protected $table='rooms';
+    protected $table = 'rooms';
     protected $casts = [
-    'amenities' => 'array', // tự cast JSON ↔ array
+        'amenities' => 'array', // tự cast JSON ↔ array
     ];
-    protected $fillable=[
+    protected $fillable = [
         'hotel_id',
         'room_type',         // loại phòng: Deluxe, Standard
         'price',             // giá
@@ -31,12 +31,15 @@ class Room extends Model
     {
         return $this->hasMany(Booking::class, 'room_id');
     }
-     public function isAvailable($requiredQuantity = 1): bool
+    public function isAvailable($requiredQuantity = 1): bool
     {
         return $this->quantity >= $requiredQuantity &&
-               $this->availability_status === 'available';
+            $this->availability_status === 'available';
     }
-
+    public function roomNumbers()
+    {
+        return $this->hasMany(RoomNumber::class, 'room_id');
+    }
     /**
      * Giảm số lượng phòng (realtime)
      */

@@ -13,9 +13,18 @@ class Hotel extends Model
         static::addGlobalScope(new ApprovedScope);
     }
     use HasFactory;
-    protected $table='hotels';
-    protected $fillable=[
-        'name','province','description','price','name_nearby_place','hotel_class','text','amenities','user_id','status'
+    protected $table = 'hotels';
+    protected $fillable = [
+        'name',
+        'province',
+        'description',
+        'price',
+        'name_nearby_place',
+        'hotel_class',
+        'text',
+        'amenities',
+        'user_id',
+        'status'
     ];
     protected $casts = [
         'amenities' => 'array',
@@ -26,7 +35,14 @@ class Hotel extends Model
     }
     public function bookings()
     {
-        return $this->hasManyThrough(Booking::class, Room::class, 'hotel_id', 'room_id');
+        return $this->hasManyThrough(
+            Booking::class,
+            Room::class,
+            'hotel_id', // rooms.hotel_id
+            'room_id',  // bookings.room_id
+            'id',       // hotels.id
+            'id'        // rooms.id
+        );
     }
     public function comments()
     {
@@ -47,9 +63,15 @@ class Hotel extends Model
     public function images()
     {
         return $this->hasMany(Image::class, 'reference_id')
-                    ->where('type', 'hotel');
+            ->where('type', 'hotel');
     }
-
+    public function roomNumbers()
+    {
+        return $this->hasManyThrough(
+            \App\Models\RoomNumber::class, // Model đích muốn lấy
+            \App\Models\Room::class        // Model trung gian
+        );
+    }
     // Một khách sạn có nhiều hành vi người dùng
     public function behaviors()
     {
@@ -59,14 +81,15 @@ class Hotel extends Model
     {
         return number_format($this->attributes['price'], 0, ',', '.');
     }
-    public function firstimage(){
-        return $this->hasOne(Image::class,'reference_id')
-        ->orderBy('id','desc');
+    public function firstimage()
+    {
+        return $this->hasOne(Image::class, 'reference_id')
+            ->orderBy('id', 'desc');
     }
-    public function firstroom(){
-        return $this->hasOne(Room::class,'hotel_id')
-        ->where('quantity','>',0)
-        ->orderBy('available_from','asc');
+    public function firstroom()
+    {
+        return $this->hasOne(Room::class, 'hotel_id')
+            ->where('quantity', '>', 0)
+            ->orderBy('available_from', 'asc');
     }
-
 }

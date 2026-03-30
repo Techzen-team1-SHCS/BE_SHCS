@@ -11,25 +11,31 @@ class RoomPolicy
     /**
      * Determine whether the user can view any models.
      */
-    public function viewAny(User $user): bool
+    public function viewAny(User $user)
     {
-        //
+        return $user->role === 2
+            ? Response::allow()
+            : Response::deny('Bạn không có quyền xem room này');
     }
 
     /**
      * Determine whether the user can view the model.
      */
-    public function view(User $user, Room $room): bool
+    public function view(User $user, Room $room)
     {
-        //
+        return $user->role === 2 && $room->hotel->user_id === $user->id
+            ? Response::allow()
+            : Response::deny('Bạn không có quyền xem room này');
     }
 
     /**
      * Determine whether the user can create models.
      */
-    public function create(User $user): bool
+    public function create(User $user)
     {
-        //
+        return $user->role === 2
+            ? Response::allow()
+            : Response::deny('Bạn không có quyền tạo room này');
     }
 
     /**
@@ -54,16 +60,16 @@ class RoomPolicy
     /**
      * Determine whether the user can restore the model.
      */
-    public function restore(User $user, Room $room): bool
+    public function restore(User $user, Room $room)
     {
-        //
+        return Response::deny('Bạn không có quyền khôi phục room này');
     }
 
     /**
      * Determine whether the user can permanently delete the model.
      */
-    public function forceDelete(User $user, Room $room): bool
+    public function forceDelete(User $user, Room $room)
     {
-        //
+        return Response::deny('Bạn không có quyền xóa vĩnh viễn room này');
     }
 }
