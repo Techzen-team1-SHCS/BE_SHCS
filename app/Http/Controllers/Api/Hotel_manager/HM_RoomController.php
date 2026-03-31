@@ -7,15 +7,17 @@ use App\Http\Requests\RoomRequest;
 use App\Http\Requests\UpdateRoomRequest;
 use App\Models\Hotel;
 use App\Models\Room;
+use App\Models\Scopes\ApprovedScope;
+use Auth;
 use Illuminate\Http\Request;
 
 class HM_RoomController extends Controller
 {
     public function rooms($id)
     {
-        $hotel = Hotel::findOrFail($id);
+        $hotel = Hotel::withoutGlobalScope(ApprovedScope::class)->findOrFail($id);
 
-        $this->authorize('viewRooms', $hotel);
+        $this->authorize('viewRoom', $hotel);
 
         $rooms = $hotel->rooms;
 
@@ -24,16 +26,43 @@ class HM_RoomController extends Controller
             'data' => $rooms
         ]);
     }
+    public function rooms_all()
+    {
+        $user = Auth::user();
+
+        $rooms = Room::whereHas('hotel', function ($query) use ($user) {
+            $query->withoutGlobalScopes()->where('user_id', $user->id);
+        })
+        ->with(['hotel' => function($q) {
+            $q->select('id', 'name'); 
+        }])
+        ->latest()
+        ->get();
+
+        return response()->json([
+            'status'  => true,
+            'message' => 'Danh sách toàn bộ phòng của bạn',
+            'data'    => $rooms
+        ]);
+    }
+    public function room_Detail($id)
+    {
+        $room = Room::findOrFail($id);
+        $content=$room->with('roomNumbers')->get();
+
+        return response()->json([
+            'status'=>true,
+            'data'=>$content
+        ]);
+    }
     public function store_room(RoomRequest $request, $id)
     {
-        $hotel = Hotel::findOrFail($id);
+        $hotel = Hotel::withoutGlobalScope(ApprovedScope::class)->findOrFail($id);
 
         $this->authorize('createRoom', $hotel);
 
         $data = $request->validated();
-        $data['hotel_id'] = $hotel->id;
-
-        $room = Room::create($data);
+        $room = $hotel->rooms()->create($data);
 
         return response()->json([
             'status' => true,
@@ -58,12 +87,14 @@ class HM_RoomController extends Controller
     public function delete_room($id)
     {
         $room=Room::findOrFail($id);
-        $this->delete('delete',$room);
+        $this->authorize('delete',$room);
         $room->delete();
         return response()->json([
             'status'=>true,
             'message'=>'Xóa phòng thành công'
         ]);
     }
+
+
     
 }

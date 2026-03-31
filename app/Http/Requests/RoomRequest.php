@@ -22,8 +22,7 @@ class RoomRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'hotel_id'=>'required|exists:hotels,id',
-            'room_type'=>'required|string|max:255',
+            'room_type'=>'required|string|max:100',
             'price'=>'required|numeric|min:0',
             'max_guest'=>'required|integer|min:1',
             'quantity'=>'required|integer|min:1',
@@ -37,8 +36,6 @@ class RoomRequest extends FormRequest
     public function messages()
     {
         return[
-            'hotel_id.required'=>'Vui lòng chọc khách sạn.',
-            'hotel_id.exists'=>'Khách sạn không tồn tại.',
             'room_type.required'=>'Vui lòng nhập loại phòng.',
             'price.required'=>'Vui lòng nhập giá phòng.',
             'max_guest.required'=>'Vui lòng nhập số khách tối đa.',

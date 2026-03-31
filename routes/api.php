@@ -154,9 +154,11 @@ Route::group(['prefix' => 'auth'], function () {
         Route::post('/hotels/{hotel}/images', [HotelController::class, 'uploadImages']);
 
         //rooms
-        Route::get('/rooms', [HM_RoomController::class, 'rooms']);
-        Route::post('/rooms', [HM_RoomController::class, 'store_room']);
-        Route::post('/rooms/{id}', [HM_RoomController::class, 'update_room']);
+        Route::get('/rooms/{id}', [HM_RoomController::class, 'rooms']);
+        Route::get('/rooms_all', [HM_RoomController::class, 'rooms_all']);
+        Route::get('/rooms_detail/{id}', [HM_RoomController::class, 'room_Detail']);
+        Route::post('/rooms/{id}/store', [HM_RoomController::class, 'store_room']);
+        Route::post('/rooms/{id}/update', [HM_RoomController::class, 'update_room']);
         Route::delete('rooms/{id}',[HM_RoomController::class,'delete_room']);
 
         // room_numbers
