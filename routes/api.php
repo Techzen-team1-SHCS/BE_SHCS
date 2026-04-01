@@ -111,8 +111,11 @@ Route::group(['prefix' => 'auth'], function () {
         //Notification
         Route::get('Allnotifications', [NotificationController::class, 'getAllAdmin']);
         Route::get('/notifications', [NotificationController::class, 'index']);
+        Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount']);
         Route::put('/notifications/{id}/read', [NotificationController::class, 'markAsRead']);
         Route::put('/notifications/mark-all-read', [NotificationController::class, 'markAllAsRead']);
+        Route::delete('/notifications/{id}', [NotificationController::class, 'destroy']);
+        Route::delete('/notifications/clear-read', [NotificationController::class, 'clearRead']);
         //Support Ticket
         Route::get('/support-tickets', [SupportTicketController::class, 'index']);
         Route::get('/support-tickets/{id}', [SupportTicketController::class, 'show']);

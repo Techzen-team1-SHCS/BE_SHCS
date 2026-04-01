@@ -4,40 +4,72 @@ namespace App\Helpers;
 
 use App\Events\NotificationSuccess;
 use App\Models\Notification;
-use App\Events\PaymentSuccess;
 
 class NotificationHelper
 {
     /**
-     * Tạo notification và broadcast realtime
+     * Map type → priority tự động
+     * Giữ nguyên các type cũ để backward-compatible
      */
-    public static function send($userId, $type, $title, $message,$data=null)
+    private static array $priorityMap = [
+        // 🔴 Critical
+        'new_booking'       => 'critical',
+        'check_in_today'    => 'critical',
+        'check_out_today'   => 'critical',
+        'payment_failed'    => 'critical',
+
+        // 🟡 Warning
+        'room_low_stock'    => 'warning',
+        'booking_cancelled' => 'warning',
+        'cancel_booking'    => 'warning',   // type cũ — backward compat
+
+        // 🟢 Success
+        'payment_success'   => 'success',
+        'payment'           => 'success',   // type cũ — backward compat
+        'booking_created'   => 'success',
+        'booking'           => 'success',   // type cũ — backward compat
+        'booking_confirmed' => 'success',
+        'hotel_approved'    => 'success',
+        'Registration_Successful' => 'success', // type cũ — backward compat
+
+        // 🔵 Info
+        'new_review'           => 'info',
+        'user_updated_profile' => 'info',
+    ];
+
+    /**
+     * Tạo notification và broadcast realtime
+     *
+     * @param int         $userId   ID người nhận
+     * @param string      $type     Loại notification
+     * @param string      $title    Tiêu đề
+     * @param string      $message  Nội dung
+     * @param array|null  $data     Dữ liệu phụ (booking_id, hotel_id, ...)
+     * @return Notification
+     */
+    public static function send($userId, string $type, string $title, string $message, ?array $data = null): Notification
     {
-        $notification = Notification::create([
-        'user_id' => $userId,
-        'type' => $type,
-        'title' => $title,
-        'message' => $message,
-        'data' => $data ? json_encode($data) : null,
-        ]);
-        // Broadcast event theo loại
-        switch ($type) {
-            case 'payment':
-                broadcast(new NotificationSuccess($notification));
-                break;
-            case 'booking':
-                broadcast(new NotificationSuccess($notification));
-                break;
-            case 'cancel_booking':
-                broadcast(new NotificationSuccess($notification));
-                break;
-            case 'Registration_Successful':
-                broadcast(new NotificationSuccess($notification));
-                break;
-            default:
-                broadcast(new NotificationSuccess($notification));
-                break;
+        // Xác định priority: ưu tiên lấy từ $data nếu caller tự truyền
+        $priority = $data['priority'] ?? self::$priorityMap[$type] ?? 'info';
+
+        // Lọc priority ra khỏi data để không lưu trùng lặp
+        $cleanData = $data;
+        if (isset($cleanData['priority'])) {
+            unset($cleanData['priority']);
         }
+
+        $notification = Notification::create([
+            'user_id'  => $userId,
+            'type'     => $type,
+            'title'    => $title,
+            'message'  => $message,
+            'priority' => $priority,
+            'data'     => !empty($cleanData) ? $cleanData : null,
+            'is_read'  => false,
+        ]);
+
+        // Broadcast realtime qua private channel user.{id}
+        broadcast(new NotificationSuccess($notification));
 
         return $notification;
     }
