@@ -4,7 +4,6 @@ namespace App\Events;
 
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
-use Illuminate\Broadcasting\PresenceChannel;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
@@ -14,14 +13,13 @@ class NotificationSuccess implements ShouldBroadcast
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
-    /**
-     * Create a new event instance.
-     */
     public $notification;
+
     public function __construct($notification)
     {
         $this->notification = $notification;
     }
+
     public function broadcastOn()
     {
         return new PrivateChannel('user.' . $this->notification->user_id);
@@ -30,10 +28,13 @@ class NotificationSuccess implements ShouldBroadcast
     public function broadcastWith()
     {
         return [
-            'id' => $this->notification->id,
-            'type' => $this->notification->type,
-            'title' => $this->notification->title,
-            'message' => $this->notification->message,
+            'id'         => $this->notification->id,
+            'type'       => $this->notification->type,
+            'priority'   => $this->notification->priority ?? 'info',
+            'title'      => $this->notification->title,
+            'message'    => $this->notification->message,
+            'data'       => $this->notification->data,
+            'is_read'    => false,
             'created_at' => $this->notification->created_at->toDateTimeString(),
         ];
     }

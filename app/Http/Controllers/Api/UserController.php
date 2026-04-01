@@ -373,6 +373,18 @@ class UserController extends Controller
             }
         }
 
+        // 5.5️⃣ Notify Admin: user updated profile (🔵 Info)
+        $admins = User::where('role', 1)->get();
+        foreach ($admins as $admin) {
+            NotificationHelper::send(
+                $admin->id,
+                'user_updated_profile',
+                '👤 Cập nhật hồ sơ',
+                "Người dùng {$user->name} (ID: {$user->id}) vừa cập nhật hồ sơ cá nhân.",
+                ['user_id' => $user->id]
+            );
+        }
+
         // 6️⃣ Trả về kết quả JSON
         return response()->json([
         'status'     => 'success',

@@ -36,6 +36,23 @@ class ProcessBookingAfterCreation implements ShouldQueue
             ['booking_id' => $this->booking->id]
         );
 
+        $room = $this->booking->room;
+        $hotelOwnerId = $room->hotel->user_id ?? null;
+
+        // ─── 2.5 Notify HOTEL MANAGER: phòng sắp hết 🟡 ────────────────────
+        if ($hotelOwnerId && $this->newQuantity > 0 && $this->newQuantity <= 2) {
+            NotificationHelper::send(
+                $hotelOwnerId,
+                'room_low_stock',
+                '⚠️ Phòng sắp hết',
+                "Loại phòng " . ($room->room_type ?? 'phòng') . " chỉ còn {$this->newQuantity} phòng trống.",
+                [
+                    'room_id'            => $this->booking->room_id,
+                    'available_quantity' => $this->newQuantity,
+                ]
+            );
+        }
+
         // Broadcast realtime
         event(new RoomQuantityUpdated(
             $this->booking->room_id,
