@@ -31,7 +31,7 @@ class User extends Authenticatable
         'birth',
         'image',
         'wallet_balance',
-
+        'business_license_url',
     ];
 
     /**

@@ -41,6 +41,7 @@ Route::group(['prefix' => 'auth'], function () {
     Route::post('/login', [UserController::class, 'login']);
     Route::post('/loginGoogle', [UserController::class, 'loginGoogle']);
     Route::post('/register', [UserController::class, 'register']);
+    Route::post('/hotel-manager/register', [\App\Http\Controllers\Api\Hotel_manager\HM_AuthController::class, 'register']);
     Route::post('/passwordRetrieval', [UserController::class, 'passwordRetrieval']);
     Route::post('/users', [UserController::class, 'addUser']);
     Route::get('/hotels/search', [HotelController::class, 'search']);
