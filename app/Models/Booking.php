@@ -19,6 +19,7 @@ class Booking extends Model
         'total_price',
         'status',
         'quantity',
+        'selected_room_numbers',
         'payment_status',
         'cancel_free_days',
         'discount_code',

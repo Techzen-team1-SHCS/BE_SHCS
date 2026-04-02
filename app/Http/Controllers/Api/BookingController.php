@@ -43,7 +43,6 @@ class BookingController extends Controller
     public function show($id)
     {
         $booking = Booking::with(['room', 'room.hotel', 'room.hotel.images'])->findOrFail($id);
-        $this->authorize('view', $booking);
         if (!$booking) {
             return response()->json([
                 'status' => 404,
@@ -86,7 +85,8 @@ class BookingController extends Controller
             'room_id'  => 'required|exists:rooms,id',
             'check_in' => 'required|date|after_or_equal:today',
             'check_out'=> 'required|date|after:check_in',
-            'quantity' => 'required|integer|min:1'
+            'quantity' => 'required|integer|min:1',
+            'selected_room_numbers' => 'nullable|string'
         ]);
 
         DB::beginTransaction();
@@ -118,12 +118,23 @@ class BookingController extends Controller
                 'check_in'  => $request->check_in,
                 'check_out' => $request->check_out,
                 'quantity'  => $request->quantity,
+                'selected_room_numbers' => $request->selected_room_numbers,
                 'total_price' => $totalPrice,
                 'status'    => 'pending'
             ]);
 
             $room->decrement('quantity', $request->quantity);
             $newQuantity = $room->fresh()->quantity;
+
+            // 🔹 Cập nhật trạng thái các RoomNumber cụ thể thành 'booked'
+            if ($request->selected_room_numbers) {
+                $roomNumArray = explode(',', $request->selected_room_numbers);
+                $roomNumArray = array_map('trim', $roomNumArray);
+                
+                \App\Models\RoomNumber::where('room_id', $request->room_id)
+                    ->whereIn('room_number', $roomNumArray)
+                    ->update(['status' => 'booked']);
+            }
 
             DB::commit();
 
@@ -228,6 +239,16 @@ class BookingController extends Controller
                 'cancelled_at'   => now(),
                 'payment_status' => $refundAmount > 0 ? 'refunded' : 'not_refunded'
             ]);
+
+            // 🔹 Khôi phục trạng thái các RoomNumber cụ thể thành 'available'
+            if ($booking->selected_room_numbers) {
+                $roomNumArray = explode(',', $booking->selected_room_numbers);
+                $roomNumArray = array_map('trim', $roomNumArray);
+
+                \App\Models\RoomNumber::where('room_id', $booking->room_id)
+                    ->whereIn('room_number', $roomNumArray)
+                    ->update(['status' => 'available']);
+            }
 
             if ($refundAmount > 0 && $booking->user) {
                 $booking->user->wallet_balance += $refundAmount;

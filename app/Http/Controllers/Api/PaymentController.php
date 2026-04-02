@@ -15,8 +15,8 @@ use Illuminate\Support\Facades\Mail;
 
 class PaymentController extends Controller
 {
-    protected $vnp_TmnCode = "F9KUTE06"; // từ config của bạn
-    protected $vnp_HashSecret = "LLBHCABD51A4EON9R4JJAJZBCV8RJWIG"; // secret của bạn
+    protected $vnp_TmnCode = "UPD7AKKL"; // từ config của bạn
+    protected $vnp_HashSecret = "GO1XSEJMSWZXZ5SI942EHW1HOMZ8QJIQ"; // secret của bạn
     protected $vnp_Url = "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html";
     protected $vnp_Returnurl = "http://localhost:8000/api/auth/vnpay/return";
 

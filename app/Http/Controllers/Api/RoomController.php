@@ -46,11 +46,11 @@ class RoomController extends Controller
         $guests = $request->guests;
 
         // 1️⃣ Check phòng phù hợp số người trước
-        $rooms = Room::where('hotel_id', $hotelId)
+        $rooms = Room::with('roomNumbers') // <-- Thêm dòng này để get kèm RoomNumber
+            ->where('hotel_id', $hotelId)
             ->where('availability_status', 'available')
             ->where('max_guest', '>=', $guests)
             ->get();
-
         if ($rooms->isEmpty()) {
             return response()->json([
                 'success' => false,
@@ -62,7 +62,7 @@ class RoomController extends Controller
         // 2️⃣ Lọc phòng còn trống theo booking
         $availableRooms = $rooms->filter(function ($room) use ($checkIn, $checkOut) {
 
-            $bookedCount = Booking::where('room_id', $room->id)
+            $bookedQuantity = Booking::where('room_id', $room->id)
                 ->where('status', '!=', 'cancelled')
                 ->where(function ($q) use ($checkIn, $checkOut) {
                     $q->whereBetween('check_in', [$checkIn, $checkOut])
@@ -72,9 +72,12 @@ class RoomController extends Controller
                             ->where('check_out', '>=', $checkOut);
                     });
                 })
-                ->count();
+                ->sum('quantity');
 
-            return $bookedCount < $room->quantity;
+            // Tính số lượng phòng còn lại và gán vào model
+            $room->available_quantity = $room->quantity - $bookedQuantity;
+
+            return $room->available_quantity > 0;
         });
 
         if ($availableRooms->isEmpty()) {
