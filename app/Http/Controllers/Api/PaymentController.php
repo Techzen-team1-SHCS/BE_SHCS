@@ -10,6 +10,7 @@ use App\Models\Payment;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
@@ -26,7 +27,7 @@ class PaymentController extends Controller
 
         $booking = Booking::findOrFail($request->booking_id);
 
-        if ($booking->status === 'confirmed') {
+        if ($booking->status === 'completed') {
             return response()->json(['status' => 'error', 'message' => 'Booking đã thanh toán']);
         }
         if (Carbon::parse($booking->check_out)->isPast()) {
@@ -251,5 +252,110 @@ class PaymentController extends Controller
             'data' => $payments,
         ]);
     }
+    public function generateQR(Request $request)
+    {
+        $booking = Booking::findOrFail($request->booking_id);
+        $amount = $booking->total_price;
+        if ($booking->status === 'completed') {
+            return response()->json(['status' => 'error', 'message' => 'Booking đã thanh toán']);
+        }
+        $orderCode = $booking->getOrGeneratePaymentCode();
+        $bankBin = env('BANK_ID'); 
+        $accountNo = env('ACCOUNT_NO'); 
+        $template = env('TEMPLATE', 'compact2');
+        $accountName = env('ACCOUNT_NAME', 'TEN CHU THE'); 
+     
+        $response = Http::post('https://api.vietqr.io/v2/generate', [
+            'accountNo' => $accountNo,
+            'accountName' => $accountName,
+            'acqId' => $bankBin,
+            'amount' => $amount,
+            'addInfo' => $orderCode, 
+            'format' => 'text',
+            'template' => $template 
+        ]);
+        if ($response->successful()) {
+            return response()->json($response->json());
+        }
+        return response()->json(['error' => 'Không thể tạo mã QR'], 500);
+    }
 
+    public function cassoWebhook(Request $request)
+    {
+        try {
+            $secureToken = env('CASSO_SECURE_TOKEN');
+            // If defined in .env, verify it matches the header from Casso
+            if ($secureToken && $request->header('secure-token') !== $secureToken) {
+                return response()->json(['error' => 1, 'message' => 'Unauthorized'], 401);
+            }
+
+            if ($request->error != 0 || empty($request->data)) {
+                return response()->json(['error' => 1, 'message' => 'No valid data provided']);
+            }
+
+            foreach ($request->data as $transaction) {
+                $description = strtoupper($transaction['description']);
+                $amount = (int) $transaction['amount'];
+                
+                // Lấy danh sách booking đang chờ chuyển khoản
+                $bookings = Booking::whereIn('status', ['pending', 'confirmed'])
+                    ->where('payment_status', '!=', 'paid')
+                    ->whereNotNull('payment_code')
+                    ->get();
+
+                foreach ($bookings as $booking) {
+                    if (strpos($description, strtoupper($booking->payment_code)) !== false) {
+                        // Khớp mã thanh toán
+                        if ($amount >= $booking->total_price) {
+                            
+                            // Ngăn chặn duplicate webhook trigger cho cùng một GD
+                            $existingPayment = Payment::where('vnp_txn_ref', $transaction['tid'])->first();
+                            if ($existingPayment) continue;
+
+                            // 1. Cập nhật thẻ Booking
+                            $booking->update([
+                                'status' => 'completed',
+                                'payment_status' => 'paid'
+                            ]);
+
+                            // 2. Tạo bản ghi Payment
+                            Payment::create([
+                                'user_id' => $booking->user_id,
+                                'booking_id' => $booking->id,
+                                'amount' => $amount,
+                                'status' => 'paid',
+                                'payment_method' => 'casso_qr',
+                                'vnp_txn_ref' => $transaction['tid'], // TID của Casso
+                            ]);
+
+                            // 3. Gửi thông báo
+                            NotificationHelper::send(
+                                $booking->user_id,
+                                'payment',
+                                'Thanh toán thành công qua mã QR',
+                                "Booking #{$booking->id} đã thanh toán thành công (Mã CK: {$transaction['tid']}): " . number_format($amount, 0, ',', '.') . " VND"
+                            );
+
+                            try {
+                                $booking->load('room.hotel', 'user');
+                                // Sinh PDF hóa đơn
+                                $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.invoice', compact('booking'));
+                                $pdfPath = storage_path('app/public/invoice-' . $booking->id . '.pdf');
+                                $pdf->save($pdfPath);
+
+                                // Gửi email hóa đơn
+                                Mail::to($booking->user->email)->send(new PaymentBilling($booking, $pdfPath));
+                            } catch (\Exception $e) {
+                                Log::error('Send invoice failed on Casso Hook: ' . $e->getMessage());
+                            }
+                        }
+                    }
+                }
+            }
+            return response()->json(['error' => 0, 'message' => 'Processed webhook successfully']);
+        } catch (\Exception $e) {
+            Log::error('Casso Webhook Error: ' . $e->getMessage());
+            return response()->json(['error' => 1, 'message' => 'Server Error'], 500);
+        }
+    }
 }

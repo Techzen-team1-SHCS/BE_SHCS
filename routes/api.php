@@ -65,6 +65,7 @@ Route::group(['prefix' => 'auth'], function () {
     Route::get('/hotels/{hotelId}/available-rooms', [RoomController::class, 'getAvailableRooms']);
     //Payment
     Route::get('/vnpay/return', [PaymentController::class, 'vnpayReturn']);
+    Route::post('/casso/webhook', [PaymentController::class, 'cassoWebhook']);
     //Comments
     Route::get('/comments', [CommentController::class, 'index']);
     //Booking
@@ -92,6 +93,7 @@ Route::group(['prefix' => 'auth'], function () {
         Route::put('/booking/{id}', [BookingController::class, 'update']);
         Route::delete('/booking/{id}', [BookingController::class, 'destroy']);
         Route::post('/booking/cancel/{id}', [BookingController::class, 'cancel']);
+        Route::post('/booking/generate-qr', [BookingController::class, 'generateQR']);
         // Tạo comment mới
         Route::post('/comments', [CommentController::class, 'store']);
         // Sửa comment
