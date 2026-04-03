@@ -14,6 +14,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\Rule;
 use App\Helpers\NotificationHelper;
 use App\Jobs\ProcessBookingAfterCreation;
@@ -88,7 +89,7 @@ class BookingController extends Controller
             'quantity' => 'required|integer|min:1',
             'selected_room_numbers' => 'nullable|string'
         ]);
-
+        
         DB::beginTransaction();
         try {
             $room = Room::where('id', $request->room_id)
@@ -111,7 +112,7 @@ class BookingController extends Controller
                 ->diffInDays(Carbon::parse($request->check_out));
 
             $totalPrice = $room->price * $nights * $request->quantity;
-
+            
             $booking = Booking::create([
                 'user_id'   => $request->user_id,
                 'room_id'   => $request->room_id,
@@ -120,9 +121,12 @@ class BookingController extends Controller
                 'quantity'  => $request->quantity,
                 'selected_room_numbers' => $request->selected_room_numbers,
                 'total_price' => $totalPrice,
-                'status'    => 'pending'
+                'status'    => 'pending',
             ]);
 
+            $dayOfWeek = strtoupper(substr(now()->format('l'), 0, 2));
+            $booking->payment_code = $dayOfWeek . now()->format('dm') . $booking->id;
+            $booking->save(); // Lệnh save() này sẽ bỏ qua $fillable và ép lưu thẳng xuống Database
             $room->decrement('quantity', $request->quantity);
             $newQuantity = $room->fresh()->quantity;
 
@@ -373,5 +377,46 @@ class BookingController extends Controller
             'price'              => $room->price,
             'last_updated'       => now()->toISOString()
         ]);
+    }
+
+    public function generateQR(Request $request)
+    {
+        $booking = Booking::findOrFail($request->booking_id);
+        $amount = (int) $booking->total_price;
+        if ($booking->status === 'completed' || $booking->payment_status === 'paid') {
+            return response()->json(['status' => 'error', 'message' => 'Booking đã thanh toán']);
+        }
+        
+        $orderCode = $booking->payment_code;
+        if (!$orderCode) {
+            $orderCode = $booking->getOrGeneratePaymentCode();
+        }
+        
+        $bankBin = env('BANK_ID', '970422'); 
+        $accountNo = env('ACCOUNT_NO', '0935326193'); 
+        $template = env('TEMPLATE', 'compact2');
+        $accountName = env('ACCOUNT_NAME', 'TEN CHU THE'); 
+     
+        $response = Http::post('https://api.vietqr.io/v2/generate', [
+            'accountNo' => $accountNo,
+            'accountName' => $accountName,
+            'acqId' => $bankBin,
+            'amount' => $amount,
+            'addInfo' => $orderCode, 
+            'format' => 'text',
+            'template' => $template 
+        ]);
+        
+        if ($response->successful()) {
+            $data = $response->json();
+            $data['payment_info'] = [
+                'accountNo' => $accountNo,
+                'accountName' => $accountName,
+                'amount' => $amount,
+                'addInfo' => $orderCode
+            ];
+            return response()->json($data);
+        }
+        return response()->json(['error' => 'Không thể tạo mã QR'], 500);
     }
 }

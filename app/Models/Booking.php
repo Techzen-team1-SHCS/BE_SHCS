@@ -47,4 +47,35 @@ class Booking extends Model
     {
         return $this->belongsTo(Room::class, 'room_id');
     }
+
+
+    public function getOrGeneratePaymentCode()
+    {
+        if ($this->payment_code) {
+            return $this->payment_code;
+        }
+        $dayOfWeek = strtoupper(substr(now()->format('l'), 0, 2)); 
+        
+        /* Kết quả sẽ tự động ra:
+        - Thứ 2: MO
+        - Thứ 3: TU
+        - Thứ 4: WE
+        - Thứ 5: TH
+        - Thứ 6: FR
+        - Thứ 7: SA
+        - Chủ nhật: SU
+        */
+
+        // 3. Lấy Ngày và Tháng
+        $day = now()->format('d');
+        $month = now()->format('m');
+
+        // 4. Ghép toàn bộ lại: [MÃ THỨ] + [NGÀY] + [THÁNG] + [ID ĐƠN]
+        $newCode = $dayOfWeek . $day . $month . $this->id;
+
+        // 5. Lưu vào Database
+        $this->update(['payment_code' => $newCode]);
+
+        return $newCode;
+    }
 }
