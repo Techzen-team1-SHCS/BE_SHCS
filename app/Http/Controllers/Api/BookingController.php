@@ -12,15 +12,21 @@ use App\Models\Room;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\Rule;
 use App\Helpers\NotificationHelper;
 use App\Jobs\ProcessBookingAfterCreation;
+use App\Services\BookingService;
 
 class BookingController extends Controller
 {
+    public function __construct(private readonly BookingService $bookingService)
+    {
+    }
+
     public function index()
     {
         try {
@@ -31,9 +37,17 @@ class BookingController extends Controller
                     'user'
                 ])
                 ->latest()
-                ->get();
+                ->paginate((int) request('per_page', 20));
 
-            return response()->json($bookings);
+            return response()->json([
+                'data' => $bookings->items(),
+                'pagination' => [
+                    'current_page' => $bookings->currentPage(),
+                    'last_page' => $bookings->lastPage(),
+                    'per_page' => $bookings->perPage(),
+                    'total' => $bookings->total(),
+                ],
+            ]);
         } catch (\Exception $e) {
             return response()->json([
                 'message' => 'Failed to fetch bookings'
@@ -64,7 +78,7 @@ class BookingController extends Controller
         $bookings = Booking::with(['room', 'room.hotel', 'room.hotel.images'])
             ->where('user_id', $user->id)
             ->orderBy('created_at', 'desc')
-            ->get();
+            ->paginate((int) request('per_page', 20));
 
         if ($bookings->isEmpty()) {
             return response()->json([
@@ -75,7 +89,13 @@ class BookingController extends Controller
 
         return response()->json([
             'status' => 200,
-            'data'   => $bookings
+            'data'   => $bookings->items(),
+            'pagination' => [
+                'current_page' => $bookings->currentPage(),
+                'last_page' => $bookings->lastPage(),
+                'per_page' => $bookings->perPage(),
+                'total' => $bookings->total(),
+            ],
         ], 200);
     }
 
@@ -144,6 +164,8 @@ class BookingController extends Controller
 
             // Dispatch job async (notify user + HM + broadcast)
             ProcessBookingAfterCreation::dispatch($booking, $newQuantity);
+            Cache::forget('dashboard_stats');
+            Cache::forget('dashboard_summary');
 
             return response()->json([
                 'success'            => true,
@@ -215,19 +237,14 @@ class BookingController extends Controller
                 $diffDays = 0;
             }
 
-            if ($diffDays > $cancelFreeDays) {
-                $cancelFee    = 0;
-                $refundAmount = $booking->total_price;
-                $isFree       = true;
-            } elseif ($diffDays > 0 && $diffDays <= $cancelFreeDays) {
-                $cancelFee    = round($booking->total_price * 0.5);
-                $refundAmount = $booking->total_price - $cancelFee;
-                $isFree       = false;
-            } else {
-                $cancelFee    = $booking->total_price;
-                $refundAmount = 0;
-                $isFree       = false;
-            }
+            $cancelData = $this->bookingService->buildCancellationData(
+                (int) $booking->total_price,
+                (int) $diffDays,
+                (int) $cancelFreeDays
+            );
+            $cancelFee = $cancelData['cancel_fee'];
+            $refundAmount = $cancelData['refund_amount'];
+            $isFree = $cancelData['is_free'];
 
             $room = Room::where('id', $booking->room_id)->lockForUpdate()->first();
             if (!$room) {
@@ -283,6 +300,8 @@ class BookingController extends Controller
             }
 
             DB::commit();
+            Cache::forget('dashboard_stats');
+            Cache::forget('dashboard_summary');
 
             return response()->json([
                 'success' => true,
@@ -397,7 +416,7 @@ class BookingController extends Controller
         $template = env('TEMPLATE', 'compact2');
         $accountName = env('ACCOUNT_NAME', 'TEN CHU THE'); 
      
-        $response = Http::post('https://api.vietqr.io/v2/generate', [
+        $response = Http::timeout(8)->retry(2, 200)->post('https://api.vietqr.io/v2/generate', [
             'accountNo' => $accountNo,
             'accountName' => $accountName,
             'acqId' => $bankBin,

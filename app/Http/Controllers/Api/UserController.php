@@ -11,6 +11,7 @@ use App\Http\Requests\UserRequest;
 use App\Mail\RegisterEmail;
 use App\Models\Image;
 use App\Models\User;
+use App\Services\UserProfileService;
 use App\Services\UserServices;
 use CloudinaryLabs\CloudinaryLaravel\Facades\Cloudinary;
 use GuzzleHttp\Client;
@@ -27,7 +28,7 @@ use Illuminate\Support\Facades\Password;
 class UserController extends Controller
 {
     protected $user;
-    public function __construct(UserServices $user)
+    public function __construct(UserServices $user, private readonly UserProfileService $userProfileService)
     {
         $this->user=$user;
     }
@@ -45,7 +46,7 @@ class UserController extends Controller
         ]);
 
         // 2️⃣ Xử lý Avatar (Tách ra hàm riêng cho sạch Controller)
-        $avatarUrl = $this->handleAvatarUpload($request, $user->id);
+        $this->userProfileService->queueAvatarUpload($user->id, $request->file('avatar'));
 
         // 3️⃣ Gửi Email VÀO HÀNG ĐỢI (Chạy ngầm - Không bắt user đợi)
         // 🚨 QUAN TRỌNG: Thay send() bằng queue()
@@ -63,58 +64,22 @@ class UserController extends Controller
         return response()->json([
             'status'     => 'success',
             'data'       => $user,
-            'avatar_url' => $avatarUrl
+            'avatar_url' => null,
+            'message' => $request->hasFile('avatar')
+                ? 'Đăng ký thành công. Avatar đang được xử lý nền.'
+                : 'Đăng ký thành công.'
         ], 201);
     }
 
     /**
      * Hàm private xử lý riêng việc upload ảnh lên ImgBB
      */
-    private function handleAvatarUpload($request, $userId)
-    {
-        if (!$request->hasFile('avatar') || !$request->file('avatar')->isValid()) {
-            return '';
-        }
-
-        try {
-            $file = $request->file('avatar');
-            $imgData = base64_encode(file_get_contents($file->getRealPath()));
-            $apiKey = env('IMGBB_API_KEY');
-
-            $ch = curl_init();
-            curl_setopt($ch, CURLOPT_URL, 'https://api.imgbb.com/1/upload?key=' . $apiKey);
-            curl_setopt($ch, CURLOPT_POST, 1);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, ['image' => $imgData]);
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_TIMEOUT, 5); // Set timeout tối đa 5s để tránh treo server
-
-            $response = curl_exec($ch);
-            curl_close($ch);
-
-            $data = json_decode($response, true);
-            $avatarUrl = $data['data']['url'] ?? '';
-
-            if ($avatarUrl) {
-                Image::create([
-                    'url'          => $avatarUrl,
-                    'type'         => 'avatar',
-                    'reference_id' => $userId,
-                ]);
-            }
-
-            return $avatarUrl;
-
-        } catch (\Exception $e) {
-            // Log lỗi nếu ImgBB sập, không làm chết luồng đăng ký của user
-            \Log::error('ImgBB Upload Error: ' . $e->getMessage());
-            return '';
-        }
-    }
+    
     public function index()
     {
         try {
-            $users=User::all();
-            if ($users->isEmpty()) {
+            $users = User::query()->paginate((int) request('per_page', 20));
+            if (empty($users->items())) {
                 return response()->json([
                     'status' => 200,
                     'message' => 'Không có người dùng nào',
@@ -123,7 +88,13 @@ class UserController extends Controller
         }
             return response()->json([
                 'status'=>200,
-                'data'=>$users
+                'data'=>$users->items(),
+                'pagination' => [
+                    'current_page' => $users->currentPage(),
+                    'last_page' => $users->lastPage(),
+                    'per_page' => $users->perPage(),
+                    'total' => $users->total(),
+                ],
             ],200);
         } catch (\Throwable $th) {
             return response()->json([
@@ -265,40 +236,12 @@ class UserController extends Controller
             'password' => Hash::make($validated['password']),
         ]);
 
-        // 2️⃣ Upload avatar lên ImgBB nếu có
-        $avatarUrl = '';
-        if ($request->hasFile('avatar') && $request->file('avatar')->isValid()) {
-            $file = $request->file('avatar');
-            $imgData = base64_encode(file_get_contents($file->getRealPath()));
-            $apiKey = env('IMGBB_API_KEY');
-
-            $ch = curl_init();
-            curl_setopt($ch, CURLOPT_URL, 'https://api.imgbb.com/1/upload?key='.$apiKey);
-            curl_setopt($ch, CURLOPT_POST, 1);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, ['image' => $imgData]);
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-
-            $response = curl_exec($ch);
-            curl_close($ch);
-
-            $data = json_decode($response, true);
-            $avatarUrl = $data['data']['url'] ?? '';
-        }
-
-        // 3️⃣ Lưu avatar vào bảng images
-                if ($avatarUrl) {
-                    Image::create([
-                    'url' => $avatarUrl,
-                    'type' => 'avatar',
-                    'reference_id' => $user->id,
-        ]);
-
-                }
+        $this->userProfileService->queueAvatarUpload($user->id, $request->file('avatar'));
 
                 return response()->json([
                     'status' => 'success',
                     'data' => $user,
-                    'avatar_url' => $avatarUrl
+                    'avatar_url' => null
                 ], 201);
     }
     public function update(Request $request, $id)
@@ -331,46 +274,7 @@ class UserController extends Controller
 
         // 4️⃣ Upload avatar nếu có
         if ($request->hasFile('avatar') && $request->file('avatar')->isValid()) {
-            try {
-                $file = $request->file('avatar');
-
-                // Chuyển ảnh sang base64
-                $imgData = base64_encode(file_get_contents($file->getRealPath()));
-                $apiKey = env('IMGBB_API_KEY');
-
-                // Gọi API ImgBB
-                $ch = curl_init();
-                curl_setopt_array($ch, [
-                    CURLOPT_URL => 'https://api.imgbb.com/1/upload?key=' . $apiKey,
-                    CURLOPT_POST => 1,
-                    CURLOPT_POSTFIELDS => ['image' => $imgData],
-                    CURLOPT_RETURNTRANSFER => true,
-                ]);
-                $response = curl_exec($ch);
-
-                if (curl_errno($ch)) {
-                    Log::error('ImgBB cURL error: ' . curl_error($ch));
-                    return response()->json(['error' => 'Lỗi khi upload ảnh lên ImgBB'], 500);
-                }
-
-                curl_close($ch);
-
-                $data = json_decode($response, true);
-                $avatarUrl = $data['data']['url'] ?? null;
-
-                if (!$avatarUrl) {
-                    Log::error('ImgBB upload failed. Response: ' . $response);
-                    return response()->json(['error' => 'Upload avatar thất bại'], 500);
-                }
-
-                // 5️⃣ Lưu thẳng URL vào cột image của user
-                $user->image = $avatarUrl;
-                $user->save();
-
-            } catch (\Exception $e) {
-                Log::error('Lỗi upload avatar: ' . $e->getMessage());
-                return response()->json(['error' => 'Đã xảy ra lỗi khi cập nhật avatar'], 500);
-            }
+            $this->userProfileService->queueAvatarUpload($user->id, $request->file('avatar'));
         }
 
         // 5.5️⃣ Notify Admin: user updated profile (🔵 Info)
@@ -388,7 +292,9 @@ class UserController extends Controller
         // 6️⃣ Trả về kết quả JSON
         return response()->json([
         'status'     => 'success',
-        'message'    => 'Cập nhật thông tin thành công',
+        'message'    => $request->hasFile('avatar')
+            ? 'Cập nhật thông tin thành công. Avatar đang được xử lý nền.'
+            : 'Cập nhật thông tin thành công',
         'user'       => [
             'id'          => $user->id,
             'name'        => $user->name,
@@ -414,46 +320,15 @@ class UserController extends Controller
         $user = User::findOrFail($id);
 
         if ($request->hasFile('avatar') && $request->file('avatar')->isValid()) {
-            try {
-                $file = $request->file('avatar');
-                $imgData = base64_encode(file_get_contents($file->getRealPath()));
-                $apiKey = env('IMGBB_API_KEY');
-
-                // Dùng Laravel Http client
-                $response = Http::asForm()->post('https://api.imgbb.com/1/upload', [
-                    'key' => $apiKey,
-                    'image' => $imgData,
-                ]);
-
-                if (! $response->successful()) {
-                    Log::error('ImgBB upload failed: ' . $response->body());
-                    return response()->json(['error' => 'Upload avatar thất bại'], 500);
-                }
-
-                $data = $response->json();
-                $avatarUrl = $data['data']['url'] ?? null;
-
-                if (! $avatarUrl) {
-                    Log::error('ImgBB response invalid: ' . $response->body());
-                    return response()->json(['error' => 'Upload avatar thất bại'], 500);
-                }
-
-                // Lưu trực tiếp vào cột image
-                $user->image = $avatarUrl;
-                $user->save();
-
-                return response()->json([
-                    'status' => 'success',
-                    'message' => 'Upload avatar thành công',
-                    'avatar_url' => $avatarUrl,
-                    'user' => $user->fresh(),
-                ], 200);
-
-            } catch (\Exception $e) {
-                Log::error('Lỗi upload avatar: ' . $e->getMessage());
-                return response()->json(['error' => 'Đã xảy ra lỗi khi upload avatar'], 500);
-            }
+            $this->userProfileService->queueAvatarUpload($user->id, $request->file('avatar'));
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Avatar đang được xử lý nền',
+                'user' => $user->fresh(),
+            ], 200);
         }
+
+        return response()->json(['error' => 'Không tìm thấy file avatar hợp lệ'], 422);
     }
 
     public function destroy($id)

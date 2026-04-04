@@ -15,8 +15,8 @@ class RoomController extends Controller
 {
     public function index(){
         try {
-            $room=Room::all();
-            if(!$room){
+            $room = Room::query()->paginate((int) request('per_page', 20));
+            if(empty($room->items())){
                 return response()->json([
                     'status'=>404,
                     'message'=>'Not found Room about hotel'
@@ -24,7 +24,13 @@ class RoomController extends Controller
             }
             return response()->json([
                 'status'=>200,
-                'data'=>$room
+                'data'=>$room->items(),
+                'pagination' => [
+                    'current_page' => $room->currentPage(),
+                    'last_page' => $room->lastPage(),
+                    'per_page' => $room->perPage(),
+                    'total' => $room->total(),
+                ],
             ]);
         } catch (\Throwable $th) {
             return response()->json([
@@ -46,7 +52,7 @@ class RoomController extends Controller
         $guests = $request->guests;
 
         // 1️⃣ Check phòng phù hợp số người trước
-        $rooms = Room::with('roomNumbers') // <-- Thêm dòng này để get kèm RoomNumber
+        $rooms = Room::with('roomNumbers')
             ->where('hotel_id', $hotelId)
             ->where('availability_status', 'available')
             ->where('max_guest', '>=', $guests)
@@ -59,23 +65,20 @@ class RoomController extends Controller
             ], 422);
         }
 
-        // 2️⃣ Lọc phòng còn trống theo booking
-        $availableRooms = $rooms->filter(function ($room) use ($checkIn, $checkOut) {
+        // room.quantity đã là số lượng còn trống realtime (được decrement/increment khi booking/cancel),
+        // vì vậy không trừ thêm booked_quantity để tránh bị đếm trùng và báo "hết phòng" sai.
+        $availableRooms = $rooms->filter(function ($room) {
+            $availableByQuantity = max((int) $room->quantity, 0);
 
-            $bookedQuantity = Booking::where('room_id', $room->id)
-                ->where('status', '!=', 'cancelled')
-                ->where(function ($q) use ($checkIn, $checkOut) {
-                    $q->whereBetween('check_in', [$checkIn, $checkOut])
-                    ->orWhereBetween('check_out', [$checkIn, $checkOut])
-                    ->orWhere(function ($q2) use ($checkIn, $checkOut) {
-                        $q2->where('check_in', '<=', $checkIn)
-                            ->where('check_out', '>=', $checkOut);
-                    });
-                })
-                ->sum('quantity');
-
-            // Tính số lượng phòng còn lại và gán vào model
-            $room->available_quantity = $room->quantity - $bookedQuantity;
+            // Nếu có roomNumbers thì lấy số phòng-number đang available để đồng bộ với thực tế
+            if ($room->relationLoaded('roomNumbers') && $room->roomNumbers->isNotEmpty()) {
+                $availableByRoomNumbers = $room->roomNumbers
+                    ->where('status', 'available')
+                    ->count();
+                $room->available_quantity = min($availableByQuantity, $availableByRoomNumbers);
+            } else {
+                $room->available_quantity = $availableByQuantity;
+            }
 
             return $room->available_quantity > 0;
         });

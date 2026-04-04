@@ -68,6 +68,9 @@ class NotificationHelper
             'is_read'  => false,
         ]);
 
+        // 🚀 Clear cache đếm unread để cập nhật realtime cho lần gọi tiếp theo
+        \Illuminate\Support\Facades\Cache::forget("unread_count_user_{$userId}");
+
         // Broadcast realtime qua private channel user.{id}
         broadcast(new NotificationSuccess($notification));
 

@@ -60,7 +60,7 @@ class HM_AuthController extends Controller
                 $parsedText = $this->removeVietnameseTones($rawText);
             }
 
-            // Dò bằng các từ khóa KHÔNG DẤU để tăng độ chính xác của OCR
+            // 1. Dò bằng các từ khóa KHÔNG DẤU
             $keywords = ['doanh nghiep', 'giay phep', 'chung nhan', 'cong ty', 'ma so', 'dang ky', 'dia chi', 'tru so', 'mst'];
             
             $matchCount = 0;
@@ -72,26 +72,36 @@ class HM_AuthController extends Controller
                 }
             }
 
+            // 2. THÊM MỚI: Dò tìm Mã số thuế bằng Regex
+            // Tìm chuỗi gồm 10 chữ số liền nhau, có thể có đuôi "-xxx" (VD: 0300466144 hoặc 0300466144-001)
+            $taxCode = null;
+            if (preg_match('/\b\d{10}(?:-\d{3})?\b/', $parsedText, $matches)) {
+                $taxCode = $matches[0];
+            }
+
             Log::info("OCR Result for " . $request->email, [
                 'parsed_text_preview' => mb_substr($parsedText, 0, 500),
                 'match_count' => $matchCount,
-                'found_keywords' => $foundKeywords
+                'found_keywords' => $foundKeywords,
+                'extracted_tax_code' => $taxCode // Log thêm mã số bắt được để dễ debug
             ]);
 
-            // Require at least 2 keywords for better reliability (Adjusted back to 2 as OCR can miss words)
-            if($matchCount < 2) {
+            // 3. CẬP NHẬT LOGIC NGHIỆP VỤ: Bắt buộc đủ 2 từ khóa VÀ phải có Mã số thuế
+            if($matchCount < 2 || empty($taxCode)) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Ảnh tải lên không hợp lệ, không thể xác nhận đây là Giấy phép kinh doanh.'
+                    'message' => 'Ảnh tải lên không hợp lệ. Vui lòng cung cấp đúng Giấy phép kinh doanh có chứa Mã số doanh nghiệp rõ nét.'
                 ], 422);
             }
 
+            // 4. Tạo User (Pass được các vòng bảo vệ ở trên)
             $user = User::create([
                 'name' => $request->name,
                 'email' => $request->email,
                 'password' => Hash::make($request->password),
                 'phone' => $request->phone,
                 'business_license_url' => $imgUrl,
+                // 'tax_code' => $taxCode, // Nếu database có cột tax_code, bạn mở comment dòng này ra để lưu luôn
                 'role' => 2 
             ]);
 

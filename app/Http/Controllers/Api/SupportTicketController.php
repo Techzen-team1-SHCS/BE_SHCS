@@ -3,13 +3,10 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\SendSupportTicketEmailsJob;
 use App\Models\SupportTicket;
-use App\Mail\SupportTicketCreated;
-use App\Mail\AdminNotification;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Validator;
-use Laravel\Reverb\Loggers\Log;
 
 class SupportTicketController extends Controller
 {
@@ -35,18 +32,7 @@ class SupportTicketController extends Controller
         // Tạo ticket
         $ticket = SupportTicket::create($request->all());
 
-        // Gửi email xác nhận cho khách hàng
-        Mail::to($request->email)->send(new SupportTicketCreated($ticket));
-
-        // Lấy email của admin (user có role = 1)
-        $admin = \App\Models\User::where('role', 1)->first();
-
-        if ($admin) {
-            // Gửi thông báo cho admin
-            Mail::to($admin->email)->send(new AdminNotification($ticket));
-        } else {
-            \Log::warning('Không tìm thấy admin user với role = 1');
-        }
+        SendSupportTicketEmailsJob::dispatch($ticket->id);
 
         return response()->json([
             'success' => true,
@@ -67,11 +53,18 @@ class SupportTicketController extends Controller
 
     public function index()
     {
-        $tickets = SupportTicket::orderBy('created_at', 'desc')->get();
+        $tickets = SupportTicket::orderBy('created_at', 'desc')
+            ->paginate((int) request('per_page', 20));
 
         return response()->json([
             'success' => true,
-            'data' => $tickets
+            'data' => $tickets->items(),
+            'pagination' => [
+                'current_page' => $tickets->currentPage(),
+                'last_page' => $tickets->lastPage(),
+                'per_page' => $tickets->perPage(),
+                'total' => $tickets->total(),
+            ],
         ]);
     }
 

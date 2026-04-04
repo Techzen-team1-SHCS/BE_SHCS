@@ -37,7 +37,7 @@ class HM_RoomController extends Controller
             $q->select('id', 'name'); 
         }])
         ->latest()
-        ->get();
+        ->paginate(10); // Thêm phân trang
 
         return response()->json([
             'status'  => true,
@@ -45,14 +45,15 @@ class HM_RoomController extends Controller
             'data'    => $rooms
         ]);
     }
+
     public function room_Detail($id)
     {
-        $room = Room::findOrFail($id);
-        $content=$room->with('roomNumbers')->get();
+        // Sửa lỗi gọi with()->get() trên instance làm fetch toàn bộ bảng
+        $room = Room::with('roomNumbers')->findOrFail($id);
 
         return response()->json([
-            'status'=>true,
-            'data'=>$content
+            'status' => true,
+            'data'   => $room
         ]);
     }
     public function store_room(RoomRequest $request, $id)

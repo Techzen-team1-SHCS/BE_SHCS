@@ -82,31 +82,36 @@ class ChatController extends Controller
 
         $hotelsJson = json_encode($hotels, JSON_UNESCAPED_UNICODE);
 
-        // 🎯 PROMPT yêu cầu JSON
+        // 🎯 PROMPT yêu cầu JSON chứa cả câu trả lời và danh sách
         $prompt = "
-Bạn là AI tư vấn khách sạn.
+Bạn là chuyên viên tư vấn khách sạn lịch sự, thân thiện và chuyên nghiệp.
 
-Dữ liệu khách sạn (JSON):
+Dữ liệu hệ thống khách sạn hiện có:
 $hotelsJson
 
-Câu hỏi người dùng:
+Câu hỏi của khách hàng:
 \"$question\"
 
-Hãy lọc và trả về danh sách khách sạn phù hợp.
+Quy tắc bắt buộc:
+1. Bạn BẮT BUỘC phải phân tích câu hỏi. Nếu thông tin quá chung chung (chưa rõ Tỉnh thành/nơi đến muốn đặt), bạn PHẢI TỰ ĐỘNG hỏi lại để xin thêm thông tin. (Ví dụ: 'Dạ để tìm khách sạn phù hợp cho người lớn tuổi, cho em hỏi mình định đi du lịch ở tỉnh thành nào vậy ạ?').
+2. KỂ CẢ KHI BẠN HỎI LẠI, kết quả trả về cũng phải luôn luôn nằm trong định dạng mã code JSON bên dưới. KHÔNG BAO GIỜ trả lời text tự do ra bên ngoài.
+3. KHÔNG sử dụng ký tự bọc markdown như ```json. Chỉ trả về một Object duy nhất.
 
-Trả về JSON array theo đúng format:
-[
-  {
-    \"id\": number,
-    \"name\": string,
-    \"province\": string,
-    \"price\": string,
-    \"stars\": string,
-    \"description\": string
-  }
-]
-
-Chỉ trả về JSON. Không thêm text ngoài JSON.
+Cấu trúc JSON yêu cầu:
+{
+  \"reply\": \"(Nhập câu trò chuyện tư vấn viên hoặc câu hỏi xin thêm thông tin tại đây)\",
+  \"hotels\": [
+    {
+      \"id\": number,
+      \"name\": string,
+      \"province\": string,
+      \"price\": string,
+      \"stars\": string,
+      \"description\": string
+    }
+  ]
+}
+Lưu ý: Nếu đang hỏi ngược lại người dùng để lấy thêm thông tin, mảng 'hotels' sẽ là mảng rỗng [].
 ";
 
         $gemini = new GeminiService();
@@ -135,7 +140,8 @@ Chỉ trả về JSON. Không thêm text ngoài JSON.
 
         return response()->json([
             'status' => 200,
-            'hotels' => $decoded
+            'reply' => $decoded['reply'] ?? '',
+            'hotels' => $decoded['hotels'] ?? []
         ]);
     }
 }

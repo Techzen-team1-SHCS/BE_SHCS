@@ -167,63 +167,45 @@ class DashboardController extends Controller
     }
     public function getRoomStats()
     {
-        $rooms = Room::select('id','room_type', 'hotel_id', 'quantity')
-            ->with(['hotel.comments', 'bookings'])
+        $quantityAgg = DB::table('rooms')
+            ->selectRaw('rooms.room_type as room_type, COALESCE(SUM(rooms.quantity), 0) as total_quantity')
+            ->groupBy('rooms.room_type')
             ->get()
-            ->groupBy('room_type')
-            ->map(function ($groupedRooms) {
+            ->keyBy('room_type');
 
-                $roomType = $groupedRooms->first()->room_type;
-
-                // Log thông tin groupedRooms
-                \Log::info("Grouped rooms for type {$roomType}: " . json_encode($groupedRooms->pluck('id')->toArray()));
-
-                // Tổng số bookings theo room_type
-                $totalBookings = $groupedRooms->sum(function ($room) {
-                    // Log info từng room
-                    \Log::info("Room {$room->id} ({$room->room_type}) bookings: " . json_encode([
-                        'bookings_count' => $room->bookings->count(),
-                        'bookings_quantity' => $room->bookings->sum('quantity'),
-                        'booking_ids' => $room->bookings->pluck('id')->toArray()
-                    ]));
-
-                    return $room->bookings->sum('quantity');
-                });
-
-                // Tổng số phòng theo room_type
-                $totalQuantity = $groupedRooms->sum('quantity');
-
-                // Occupancy Rate
-                $occupancyRate = $totalQuantity > 0
-                    ? round(($totalBookings / $totalQuantity) * 100) . '%'
-                    : '0%';
-
-                // Ratings lấy từ comment của khách sạn
-                $ratings = collect();
-                foreach ($groupedRooms as $room) {
-                    if ($room->hotel && $room->hotel->comments) {
-                        $ratings = $ratings->merge(
-                            $room->hotel->comments->pluck('rating')->filter()
-                        );
-                    }
-                }
-
-                $averageRating = $ratings->count() > 0
-                    ? round($ratings->avg(), 1)
-                    : 0;
-
-                return [
-                    'roomType' => $roomType,
-                    'totalBookings' => $totalBookings,
-                    'occupancyRate' => $occupancyRate,
-                    'averageRating' => $averageRating
-                ];
+        $bookingAgg = DB::table('rooms')
+            ->leftJoin('bookings', function ($join) {
+                $join->on('bookings.room_id', '=', 'rooms.id')
+                    ->where('bookings.status', '!=', 'cancelled');
             })
-            ->values();
+            ->selectRaw('rooms.room_type as room_type, COALESCE(SUM(bookings.quantity), 0) as total_bookings')
+            ->groupBy('rooms.room_type')
+            ->get()
+            ->keyBy('room_type');
 
-        \Log::info("Final room stats: " . json_encode($rooms));
+        $ratingAgg = DB::table('rooms')
+            ->leftJoin('comments', 'comments.hotel_id', '=', 'rooms.hotel_id')
+            ->selectRaw('rooms.room_type as room_type, ROUND(AVG(comments.rating), 1) as average_rating')
+            ->groupBy('rooms.room_type')
+            ->get()
+            ->keyBy('room_type');
 
-        return response()->json($rooms);
+        $roomTypes = Room::query()->select('room_type')->distinct()->pluck('room_type');
+
+        $data = $roomTypes->map(function ($roomType) use ($quantityAgg, $bookingAgg, $ratingAgg) {
+            $totalQuantity = (int) ($quantityAgg[$roomType]->total_quantity ?? 0);
+            $totalBookings = (int) ($bookingAgg[$roomType]->total_bookings ?? 0);
+            $averageRating = (float) ($ratingAgg[$roomType]->average_rating ?? 0);
+
+            return [
+                'roomType' => $roomType,
+                'totalBookings' => $totalBookings,
+                'occupancyRate' => $totalQuantity > 0 ? round(($totalBookings / $totalQuantity) * 100) . '%' : '0%',
+                'averageRating' => $averageRating,
+            ];
+        })->values();
+
+        return response()->json($data);
     }
     public function getDashboardStats()
     {

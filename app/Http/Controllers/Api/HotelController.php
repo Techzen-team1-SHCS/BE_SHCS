@@ -10,25 +10,35 @@ use App\Models\Image;
 use App\Models\Room;
 use App\Models\Style;
 use CloudinaryLabs\CloudinaryLaravel\Facades\Cloudinary;
+use App\Services\HotelService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Password;
 use Maatwebsite\Excel\Facades\Excel;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class HotelController extends Controller
 {
+    public function __construct(private readonly HotelService $hotelService)
+    {
+    }
+
     public function index()
     {
         $hotels = Hotel::with([
                 'firstimage:id,reference_id,url'
-            ])->get();
+            ])->paginate((int) request('per_page', 20));
         return response()->json([
             'status' => 'success',
-            'content' => $hotels
+            'content' => $hotels->items(),
+            'pagination' => [
+                'current_page' => $hotels->currentPage(),
+                'last_page' => $hotels->lastPage(),
+                'per_page' => $hotels->perPage(),
+                'total' => $hotels->total(),
+            ],
         ]);
     }
 
@@ -128,8 +138,8 @@ class HotelController extends Controller
         // Key cache
         $cacheKey = 'top_hotels';
 
-        // Lấy từ cache nếu có, nếu không thì query và lưu cache 60 giây
-        $hotels = Cache::remember($cacheKey, 60, function () {
+        // Lấy từ cache nếu có, nếu không thì query và lưu cache 86400 giây (1 ngày)
+        $hotels = Cache::remember($cacheKey, 86400, function () {
             return Hotel::with(['styles', 'images'])
                 ->orderBy('hotel_class', 'desc')
                 ->take(5)
@@ -156,16 +166,12 @@ class HotelController extends Controller
     public function destinationsCount()
     {
         return Cache::remember('destinations_count', 300, function () {
-            return [
-                ['province' => 'Hà nội', 'count' => Hotel::where('province', 'Hà nội')->count()],
-                ['province' => 'Đà nẵng', 'count' => Hotel::where('province', 'Đà nẵng')->count()],
-                ['province' => 'Hồ chí minh', 'count' => Hotel::where('province', 'Hồ Chí Minh')->count()],
-                ['province' => 'Nha trang', 'count' => Hotel::where('province', 'Nha Trang')->count()],
-                ['province' => 'Huế', 'count' => Hotel::where('province', 'Huế')->count()],
-                ['province' => 'Hải phòng', 'count' => Hotel::where('province', 'Hải Phòng')->count()],
-                ['province' => 'Phú Quốc', 'count' => Hotel::where('province', 'Phú Quốc')->count()],
-                ['province' => 'Đà Lạt', 'count' => Hotel::where('province', 'Đà Lạt')->count()],
-            ];
+            return Hotel::query()
+                ->selectRaw('province, COUNT(*) as count')
+                ->groupBy('province')
+                ->orderByDesc('count')
+                ->limit(8)
+                ->get();
         });
     }
 
@@ -190,9 +196,7 @@ class HotelController extends Controller
                 $cacheKey,
                 now()->addMinutes(10),
                 function () use ($request, $cacheKey) {
-
-                    // 👉 DÒNG NÀY CHỈ XUẤT HIỆN KHI CACHE MISS
-                    Log::error('⚠️ QUERY DB RUNNING', ['key' => $cacheKey]);
+                    $perPage = max(1, min((int) $request->get('per_page', 10), 20));
 
                     $query = Hotel::query()
                         ->select([
@@ -270,7 +274,7 @@ class HotelController extends Controller
                         }
                     }
 
-                    $hotels = $query->paginate($request->get('per_page', 10));
+                    $hotels = $query->paginate($perPage);
 
                     $hotels->getCollection()->transform(function ($hotel) {
                         $hotel->price_formatted = number_format($hotel->price, 0, ',', '.');
@@ -319,36 +323,19 @@ class HotelController extends Controller
 
             DB::commit();
 
-            // Upload ảnh (sau khi commit hotel để chắc chắn có id)
-            $uploadedImages = [];
+            $this->hotelService->invalidateHotelCaches();
             if ($request->hasFile('images')) {
-                foreach ($request->file('images') as $file) {
-                    $uploadedFile = Cloudinary::uploadFile($file->getRealPath(), [
-                        'folder' => 'hotels/' . $hotel->id .'webp',
-                        'format'         => 'webp', // 💥 tự động chuyển sang webp
-                        'transformation' => [
-                            'quality' => 'auto',   // tự tối ưu chất lượng
-                            'fetch_format' => 'webp'
-                        ],
-                    ]);
-
-                    $imageUrl = $uploadedFile->getSecurePath();
-
-                    Image::create([
-                        'url'      => $imageUrl,
-                        'reference_id' => $hotel->id,
-                        'type'=>'hotel' // giữ đơn giản, dùng hotel_id
-                    ]);
-
-                    $uploadedImages[] = $imageUrl;
-                }
+                $this->hotelService->queueImageUploads($hotel->id, $request->file('images'));
             }
 
             return response()->json([
                 'status' => 'success',
                 'hotel'  => $hotel,
-                'images' => $uploadedImages,
+                'images' => [],
                 'styles' => $validated['styles'] ?? [],
+                'message' => $request->hasFile('images')
+                    ? 'Hotel created. Images are processing in background.'
+                    : 'Hotel created successfully.',
             ], 201);
 
         } catch (\Exception $e) {
@@ -397,25 +384,14 @@ class HotelController extends Controller
 
             // Thêm ảnh mới
             if ($request->hasFile('images')) {
-                foreach ($request->file('images') as $file) {
-                    $uploadedFile = Cloudinary::uploadFile($file->getRealPath(), [
-                        'folder' => 'hotels/' . $hotel->id,
-                    ]);
-
-                    $imageUrl = $uploadedFile->getSecurePath();
-
-                    Image::create([
-                        'url'          => $imageUrl,
-                        'type'         => 'hotel',
-                        'reference_id' => $hotel->id,
-                    ]);
-                }
+                $this->hotelService->queueImageUploads($hotel->id, $request->file('images'));
             }
 
             DB::commit();
 
             // Load lại quan hệ để lấy dữ liệu mới nhất
             $hotel->load(['images', 'styles']);
+            $this->hotelService->invalidateHotelCaches();
 
             return response()->json([
                 'status' => 'success',
@@ -456,6 +432,7 @@ class HotelController extends Controller
 
             // Xóa hotel
             $hotel->delete();
+            $this->hotelService->invalidateHotelCaches();
 
             DB::commit();
 
@@ -492,38 +469,17 @@ class HotelController extends Controller
             ], 400);
         }
 
-        $uploadedImages = [];
-
         DB::beginTransaction();
         try {
-            foreach ($request->file('images') as $file) {
-                $uploadedFile = Cloudinary::uploadFile($file->getRealPath(), [
-                    'folder' => 'hotels/' . $hotel->id,
-                    'format' => 'webp',
-                    'transformation' => [
-                        'quality' => 'auto',
-                        'fetch_format' => 'webp'
-                    ],
-                ]);
-
-                $imageUrl = $uploadedFile->getSecurePath();
-
-                Image::create([
-                    'url' => $imageUrl,
-                    'reference_id' => $hotel->id,
-                    'type' => 'hotel'
-                ]);
-
-                $uploadedImages[] = $imageUrl;
-            }
-
             DB::commit();
+            $this->hotelService->queueImageUploads($hotel->id, $request->file('images'));
+            $this->hotelService->invalidateHotelCaches();
 
             return response()->json([
                 'status' => 'success',
                 'hotel_id' => $hotel->id,
-                'images' => $uploadedImages
-            ], 201);
+                'message' => 'Images are processing in background'
+            ], 202);
 
         } catch (\Exception $e) {
             DB::rollBack();
