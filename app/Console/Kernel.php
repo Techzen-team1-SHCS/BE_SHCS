@@ -13,11 +13,12 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
-        $schedule->command('app:auto-update-bookings')->everyFiveMinutes();
+        $schedule->command('app:auto-update-bookings')->everyMinute();
         $schedule->command('app:send-pre-checkin-email')->dailyAt('08:00');
         $schedule->command('notify:checkin-checkout')->dailyAt('07:00');
         $schedule->command('app:process-cancelled-bookings')->everyTwoMinutes();
         $schedule->command('ai:send-behaviors')->everyMinute();
+        $schedule->command('metrics:queue-depth')->everyMinute();
     }
 
     /**
@@ -33,6 +34,7 @@ class Kernel extends ConsoleKernel
     protected $commands = [
     \App\Console\Commands\MakeServiceCommand::class,
     \App\Console\Commands\SendPreCheckinEmail::class,
+    \App\Console\Commands\LogQueueDepth::class,
 ];
 
 }

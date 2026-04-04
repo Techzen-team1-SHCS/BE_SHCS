@@ -27,27 +27,31 @@ class HM_HotelController extends Controller
     public function owner()
     {
         $this->authorize('viewAny', Hotel::class);
-
         $user = Auth::user();
-        $today = Carbon::today();
 
-        $hotels = Hotel::withoutGlobalScope(ApprovedScope::class)
-            ->where('user_id', $user->id)
-            ->with([
-                'images',
-                'styles',
-                'rooms' => function ($q) {
-                    $q->select('id', 'hotel_id', 'availability_status');
-                }
-            ])
-            ->withSum([
-                'bookings as revenue' => function ($query) use ($today) {
-                    $query->whereDate('bookings.created_at', $today);
-                }
-            ], 'total_price')
-            ->withCount('roomNumbers as totalRooms')
-            ->latest()
-            ->get();
+        // 🚀 Caching kết quả trong 5 phút để tăng tốc
+        $cacheKey = "hm_hotels_owner_{$user->id}";
+        
+        $hotels = \Illuminate\Support\Facades\Cache::remember($cacheKey, 300, function () use ($user) {
+            $today = Carbon::today();
+            
+            return Hotel::withoutGlobalScope(ApprovedScope::class)
+                ->where('user_id', $user->id)
+                ->with([
+                    'images',
+                    'styles',
+                    'rooms:id,hotel_id,availability_status' // Rút gọn select
+                ])
+                ->withSum([
+                    'bookings as revenue' => function ($query) use ($today) {
+                        // Tối ưu query sum bằng index created_at (đã check có index)
+                        $query->whereDate('bookings.created_at', $today);
+                    }
+                ], 'total_price')
+                ->withCount('roomNumbers as totalRooms')
+                ->latest()
+                ->get();
+        });
 
         return response()->json([
             'status'  => true,
@@ -139,20 +143,30 @@ class HM_HotelController extends Controller
             =========================
             */
 
-            $admins = User::where('role', '1')->get();
-
+            // ─── 🟢 Notify ADMIN: Hotel mới cần duyệt (Tối ưu bằng batch insert) ────────────────
+            $admins = User::where('role', '1')->select('id')->get();
+            $notificationData = [];
+            $now = now();
+            
             foreach ($admins as $admin) {
-                Notification::create([
+                $notificationData[] = [
                     'user_id' => $admin->id,
-                    'type' => 'hotel_pending',
-                    'title' => 'Hotel mới cần duyệt',
-                    'message' => $hotel->name . ' đang chờ duyệt',
+                    'type'    => 'hotel_pending',
+                    'title'   => 'Hotel mới cần duyệt',
+                    'message' => "Khách sạn '{$hotel->name}' đang chờ duyệt",
                     'is_read' => 0,
-                    'data' => json_encode([
-                        'hotel_id' => $hotel->id
-                    ])
-                ]);
+                    'data'    => json_encode(['hotel_id' => $hotel->id]),
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
             }
+            
+            if (!empty($notificationData)) {
+                Notification::insert($notificationData);
+            }
+
+            // Xóa cache của chủ sở hữu
+            $this->clearCache($user->id);
 
             /*
             =========================
@@ -239,6 +253,9 @@ class HM_HotelController extends Controller
 
             DB::commit();
 
+            // Xóa cache của chủ sở hữu
+            $this->clearCache($user->id);
+
             $hotel->load(['images', 'styles']);
 
             return response()->json([
@@ -283,6 +300,9 @@ class HM_HotelController extends Controller
             // Xóa hotel
             $hotel->delete();
             DB::commit();
+
+            // Xóa cache của chủ sở hữu
+            $this->clearCache($hotel->user_id);
             return response()->json([
                 'status'  => 'success',
                 'message' => 'Hotel deleted successfully'
@@ -294,5 +314,13 @@ class HM_HotelController extends Controller
                 'message' => $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Xóa cache của dashboard Hotel Manager
+     */
+    private function clearCache($userId)
+    {
+        \Illuminate\Support\Facades\Cache::forget("hm_hotels_owner_{$userId}");
     }
 }

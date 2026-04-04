@@ -41,9 +41,13 @@ class NotificationController extends Controller
         $limit         = (int) $request->get('limit', 20);
         $notifications = $query->paginate($limit);
 
-        $unreadCount = Notification::where('user_id', $userId)
-            ->where('is_read', false)
-            ->count();
+        // 🚀 Caching unread count để tránh query đếm liên tục
+        $cacheKey = "unread_count_user_{$userId}";
+        $unreadCount = \Illuminate\Support\Facades\Cache::remember($cacheKey, 600, function() use ($userId) {
+            return Notification::where('user_id', $userId)
+                ->where('is_read', false)
+                ->count();
+        });
 
         return response()->json([
             'status' => 'success',
@@ -61,23 +65,23 @@ class NotificationController extends Controller
     /**
      * GET /api/auth/Allnotifications  (Admin — giữ nguyên logic cũ)
      */
-    public function getAllAdmin()
+    public function getAllAdmin(Request $request)
     {
         $adminId       = Auth::id();
+        $limit         = (int) $request->get('limit', 15);
+        
+        // 🚀 Sử dụng paginate thay vì get() để tránh load quá nhiều data cùng lúc
         $notifications = Notification::where('user_id', $adminId)
-            ->orderBy('created_at', 'desc')
-            ->get();
-
-        if ($notifications->isEmpty()) {
-            return response()->json([
-                'status'  => 404,
-                'message' => 'Not found notification',
-            ]);
-        }
+            ->orderBy('id', 'desc')
+            ->paginate($limit);
 
         return response()->json([
             'status' => 200,
-            'data'   => $notifications,
+            'data'   => $notifications->items(),
+            'meta'   => [
+                'total' => $notifications->total(),
+                'current_page' => $notifications->currentPage()
+            ]
         ]);
     }
 
@@ -87,9 +91,15 @@ class NotificationController extends Controller
      */
     public function unreadCount()
     {
-        $count = Notification::where('user_id', Auth::id())
-            ->where('is_read', false)
-            ->count();
+        $userId = Auth::id();
+        $cacheKey = "unread_count_user_{$userId}";
+
+        // 🚀 Caching trong 10 phút, tự hủy khi mark as read hoặc create mới
+        $count = \Illuminate\Support\Facades\Cache::remember($cacheKey, 600, function() use ($userId) {
+            return Notification::where('user_id', $userId)
+                ->where('is_read', false)
+                ->count();
+        });
 
         return response()->json([
             'status'       => 'success',
@@ -102,11 +112,16 @@ class NotificationController extends Controller
      */
     public function markAsRead(Request $request, $id)
     {
+        $userId = Auth::id();
         $notification = Notification::where('id', $id)
-            ->where('user_id', Auth::id())
+            ->where('user_id', $userId)
             ->firstOrFail();
 
-        $notification->update(['is_read' => true]);
+        if (!$notification->is_read) {
+            $notification->update(['is_read' => true]);
+            // 🚀 Invalidate cache
+            \Illuminate\Support\Facades\Cache::forget("unread_count_user_{$userId}");
+        }
 
         return response()->json([
             'status'  => 'success',
@@ -119,9 +134,13 @@ class NotificationController extends Controller
      */
     public function markAllAsRead(Request $request)
     {
-        Notification::where('user_id', Auth::id())
+        $userId = Auth::id();
+        Notification::where('user_id', $userId)
             ->where('is_read', false)
             ->update(['is_read' => true]);
+        
+        // 🚀 Invalidate cache
+        \Illuminate\Support\Facades\Cache::forget("unread_count_user_{$userId}");
 
         return response()->json([
             'status'  => 'success',
@@ -135,15 +154,22 @@ class NotificationController extends Controller
      */
     public function destroy($id)
     {
+        $userId = Auth::id();
         $notification = Notification::where('id', $id)
-            ->where('user_id', Auth::id())
+            ->where('user_id', $userId)
             ->firstOrFail();
 
+        $wasUnread = !$notification->is_read;
         $notification->delete();
+
+        if ($wasUnread) {
+            // 🚀 Invalidate cache
+            \Illuminate\Support\Facades\Cache::forget("unread_count_user_{$userId}");
+        }
 
         return response()->json([
             'status'  => 'success',
-            'message' => 'Notification deleted',
+            'message' => 'Notification marked as read',
         ]);
     }
 

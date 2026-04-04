@@ -4,15 +4,12 @@ namespace App\Http\Controllers\Api;
 
 use App\Helpers\NotificationHelper;
 use App\Http\Controllers\Controller;
-use App\Mail\PaymentBilling;
 use App\Models\Booking;
 use App\Models\Payment;
+use App\Services\PaymentService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 
 class PaymentController extends Controller
 {
@@ -20,6 +17,9 @@ class PaymentController extends Controller
     protected $vnp_HashSecret = "GO1XSEJMSWZXZ5SI942EHW1HOMZ8QJIQ"; // secret của bạn
     protected $vnp_Url = "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html";
     protected $vnp_Returnurl = "http://localhost:8000/api/auth/vnpay/return";
+    public function __construct(private readonly PaymentService $paymentService)
+    {
+    }
 
     public function createPayment(Request $request)
     {
@@ -181,17 +181,7 @@ class PaymentController extends Controller
                         "Booking #{$booking->id} đã thanh toán thành công: " . number_format($booking->total_price,0,',','.') . " VND"
                     );
 
-                    try {
-                        // Sinh PDF hóa đơn
-                        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.invoice', compact('booking'));
-                        $pdfPath = storage_path('app/public/invoice-' . $booking->id . '.pdf');
-                        $pdf->save($pdfPath);
-
-                        // Gửi mail
-                        Mail::to($booking->user->email)->send(new PaymentBilling($booking, $pdfPath));
-                    } catch (\Exception $e) {
-                        Log::error('Send invoice failed: ' . $e->getMessage());
-                    }
+                    $this->paymentService->enqueueInvoice($booking->id);
                 }
 
                 $redirectUrl = 'http://localhost:5173/payment-result?status=success&transactionId=' . $vnp_TxnRef . '&bookingId=' . ($booking->id ?? '');
@@ -244,12 +234,18 @@ class PaymentController extends Controller
                 'status',
                 'created_at'
             ])
-            ->orderByDesc('created_at')   // 👈 CHỈ LẤY 50 CÁI GẦN NHẤT
-            ->get();
+            ->orderByDesc('created_at')
+            ->paginate((int) request('per_page', 20));
 
         return response()->json([
             'status' => 'success',
-            'data' => $payments,
+            'data' => $payments->items(),
+            'pagination' => [
+                'current_page' => $payments->currentPage(),
+                'last_page' => $payments->lastPage(),
+                'per_page' => $payments->perPage(),
+                'total' => $payments->total(),
+            ],
         ]);
     }
     public function generateQR(Request $request)
@@ -265,7 +261,7 @@ class PaymentController extends Controller
         $template = env('TEMPLATE', 'compact2');
         $accountName = env('ACCOUNT_NAME', 'TEN CHU THE'); 
      
-        $response = Http::post('https://api.vietqr.io/v2/generate', [
+        $response = $this->paymentService->qrClient()->post('https://api.vietqr.io/v2/generate', [
             'accountNo' => $accountNo,
             'accountName' => $accountName,
             'acqId' => $bankBin,
@@ -293,68 +289,10 @@ class PaymentController extends Controller
                 return response()->json(['error' => 1, 'message' => 'No valid data provided']);
             }
 
-            foreach ($request->data as $transaction) {
-                $description = strtoupper($transaction['description']);
-                $amount = (int) $transaction['amount'];
-                
-                // Lấy danh sách booking đang chờ chuyển khoản
-                $bookings = Booking::whereIn('status', ['pending', 'confirmed'])
-                    ->where('payment_status', '!=', 'paid')
-                    ->whereNotNull('payment_code')
-                    ->get();
-
-                foreach ($bookings as $booking) {
-                    if (strpos($description, strtoupper($booking->payment_code)) !== false) {
-                        // Khớp mã thanh toán
-                        if ($amount >= $booking->total_price) {
-                            
-                            // Ngăn chặn duplicate webhook trigger cho cùng một GD
-                            $existingPayment = Payment::where('vnp_txn_ref', $transaction['tid'])->first();
-                            if ($existingPayment) continue;
-
-                            // 1. Cập nhật thẻ Booking
-                            $booking->update([
-                                'status' => 'completed',
-                                'payment_status' => 'paid'
-                            ]);
-
-                            // 2. Tạo bản ghi Payment
-                            Payment::create([
-                                'user_id' => $booking->user_id,
-                                'booking_id' => $booking->id,
-                                'amount' => $amount,
-                                'status' => 'paid',
-                                'payment_method' => 'casso_qr',
-                                'vnp_txn_ref' => $transaction['tid'], // TID của Casso
-                            ]);
-
-                            // 3. Gửi thông báo
-                            NotificationHelper::send(
-                                $booking->user_id,
-                                'payment',
-                                'Thanh toán thành công qua mã QR',
-                                "Booking #{$booking->id} đã thanh toán thành công (Mã CK: {$transaction['tid']}): " . number_format($amount, 0, ',', '.') . " VND"
-                            );
-
-                            try {
-                                $booking->load('room.hotel', 'user');
-                                // Sinh PDF hóa đơn
-                                $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.invoice', compact('booking'));
-                                $pdfPath = storage_path('app/public/invoice-' . $booking->id . '.pdf');
-                                $pdf->save($pdfPath);
-
-                                // Gửi email hóa đơn
-                                Mail::to($booking->user->email)->send(new PaymentBilling($booking, $pdfPath));
-                            } catch (\Exception $e) {
-                                Log::error('Send invoice failed on Casso Hook: ' . $e->getMessage());
-                            }
-                        }
-                    }
-                }
-            }
+            $this->paymentService->processCassoTransactions(collect($request->data));
             return response()->json(['error' => 0, 'message' => 'Processed webhook successfully']);
         } catch (\Exception $e) {
-            Log::error('Casso Webhook Error: ' . $e->getMessage());
+            \Log::error('Casso Webhook Error: ' . $e->getMessage());
             return response()->json(['error' => 1, 'message' => 'Server Error'], 500);
         }
     }

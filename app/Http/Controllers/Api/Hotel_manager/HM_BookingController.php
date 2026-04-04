@@ -17,13 +17,14 @@ class HM_BookingController extends Controller
      */
     public function bookings($id)
     {
-        $hotel = Hotel::findOrFail($id);
+        $hotel = Hotel::withoutGlobalScope(\App\Models\Scopes\ApprovedScope::class)->findOrFail($id);
         $this->authorize('viewHotelBookings', $hotel);
 
-        $bookings = Booking::where('hotel_id', $hotel->id)
+        // Sử dụng quan hệ hasManyThrough thay vì where('hotel_id')
+        $bookings = $hotel->bookings()
             ->with(['user', 'room'])
             ->latest()
-            ->get();
+            ->paginate(15); // Thêm phân trang
 
         return response()->json([
             'status' => true,

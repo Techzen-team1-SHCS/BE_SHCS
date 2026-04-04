@@ -13,7 +13,7 @@ class BookingPolicy
      */
     public function viewAny(User $user): bool
     {
-        //
+        return true;
     }
 
     /**
@@ -21,7 +21,7 @@ class BookingPolicy
      */
     public function view(User $user, Booking $booking): bool
     {
-        //
+        return $booking->user_id === $user->id || ($user->role === 2 && $booking->hotel->user_id === $user->id) || $user->role === 1;
     }
 
     /**
@@ -29,7 +29,7 @@ class BookingPolicy
      */
     public function create(User $user): bool
     {
-        //
+        return true;
     }
 
     /**
@@ -37,7 +37,7 @@ class BookingPolicy
      */
     public function update(User $user, Booking $booking)
     {
-        return $user->role===2 && $booking->hotel->user_id === $user->id
+        return ($booking->user_id === $user->id || ($user->role === 2 && $booking->hotel->user_id === $user->id) || $user->role === 1)
         ? Response::allow()
         : Response::deny('Bạn không có quyền cập nhật booking này');
     }
@@ -47,7 +47,7 @@ class BookingPolicy
      */
     public function delete(User $user, Booking $booking): bool
     {
-        //
+        return $booking->user_id === $user->id || ($user->role === 2 && $booking->hotel->user_id === $user->id) || $user->role === 1;
     }
 
     /**
@@ -55,7 +55,7 @@ class BookingPolicy
      */
     public function restore(User $user, Booking $booking): bool
     {
-        //
+        return $booking->user_id === $user->id || ($user->role === 2 && $booking->hotel->user_id === $user->id) || $user->role === 1;
     }
 
     /**
@@ -63,6 +63,6 @@ class BookingPolicy
      */
     public function forceDelete(User $user, Booking $booking): bool
     {
-        //
+        return $booking->user_id === $user->id || ($user->role === 2 && $booking->hotel->user_id === $user->id) || $user->role === 1;
     }
 }
