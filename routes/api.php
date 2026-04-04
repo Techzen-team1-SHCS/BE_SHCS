@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\Api\CommentController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\DiscountController;
+use App\Http\Controllers\Api\HotelChatController;
 use App\Http\Controllers\Api\Hotel_manager\HM_BookingController;
 use App\Http\Controllers\Api\Hotel_manager\HM_HotelController;
 use App\Http\Controllers\Api\Hotel_manager\HM_RoomController;
@@ -96,6 +97,12 @@ Route::group(['prefix' => 'auth'], function () {
         Route::post('/comments', [CommentController::class, 'store']);
         // Sửa comment
         Route::put('/comments/{id}', [CommentController::class, 'update']);
+
+        // Hotel chat realtime user <-> HM
+        Route::get('/hotel-chats/hotels/{hotelId}/thread', [HotelChatController::class, 'getOrCreateThread']);
+        Route::get('/hotel-chats/threads/{threadId}/messages', [HotelChatController::class, 'getMessages']);
+        Route::post('/hotel-chats/threads/{threadId}/messages', [HotelChatController::class, 'sendMessage']);
+        Route::get('/hotel-chats/hm/threads', [HotelChatController::class, 'getHMThreads']);
         // Xóa comment
         Route::delete('/comments/{id}', [CommentController::class, 'destroy']);
         //Payment
