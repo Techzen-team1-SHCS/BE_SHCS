@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\Api\CommentController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\DiscountController;
+use App\Http\Controllers\Api\Hotel_manager\StaffController;
 use App\Http\Controllers\Api\HotelChatController;
 use App\Http\Controllers\Api\Hotel_manager\HM_BookingController;
 use App\Http\Controllers\Api\Hotel_manager\HM_HotelController;
@@ -15,6 +16,7 @@ use App\Http\Controllers\Api\Hotel_manager\HM_RoomNumberController;
 use App\Http\Controllers\Api\HotelController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\PaymentController;
+use App\Http\Controllers\Api\Hotel_manager\ImageKitController;
 use App\Http\Controllers\Api\RecommendationController;
 use App\Http\Controllers\Api\RoomController;
 use App\Http\Controllers\Api\UserBehaviorController;
@@ -73,6 +75,9 @@ Route::group(['prefix' => 'auth'], function () {
     Route::get('/booking', [BookingController::class, 'index']);
     //Ticket Support
     Route::post('/support-tickets', [SupportTicketController::class, 'store']);
+
+    // ImageKit Auth
+    Route::get('/imagekit-auth', [ImageKitController::class, 'getAuthParams']);
 
 
     //discount
@@ -183,5 +188,12 @@ Route::group(['prefix' => 'auth'], function () {
         //booking
         Route::post('/bookings', [HM_BookingController::class, 'bookings']);
         Route::post('/bookings/{id}', [HM_BookingController::class, 'update_booking_status']);
+
+
+        Route::get('/staff', [StaffController::class, 'index']);
+        Route::get('/staff/{id}', [StaffController::class, 'show']);
+        Route::post('/staff', [StaffController::class, 'store']);
+        Route::put('/staff/{id}', [StaffController::class, 'update']);
+        Route::delete('/staff/{id}', [StaffController::class, 'destroy']);
     });
 });
