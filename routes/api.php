@@ -7,16 +7,18 @@ use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\Api\CommentController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\DiscountController;
-use App\Http\Controllers\Api\Hotel_manager\StaffController;
-use App\Http\Controllers\Api\HotelChatController;
+use App\Http\Controllers\Api\Hotel_manager\HM_AuthController;
 use App\Http\Controllers\Api\Hotel_manager\HM_BookingController;
 use App\Http\Controllers\Api\Hotel_manager\HM_HotelController;
+use App\Http\Controllers\Api\Hotel_manager\HM_HousekeepingController;
 use App\Http\Controllers\Api\Hotel_manager\HM_RoomController;
 use App\Http\Controllers\Api\Hotel_manager\HM_RoomNumberController;
+use App\Http\Controllers\Api\Hotel_manager\ImageKitController;
+use App\Http\Controllers\Api\Hotel_manager\StaffController;
 use App\Http\Controllers\Api\HotelController;
+use App\Http\Controllers\Api\HotelChatController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\PaymentController;
-use App\Http\Controllers\Api\Hotel_manager\ImageKitController;
 use App\Http\Controllers\Api\RecommendationController;
 use App\Http\Controllers\Api\RoomController;
 use App\Http\Controllers\Api\UserBehaviorController;
@@ -189,11 +191,31 @@ Route::group(['prefix' => 'auth'], function () {
         Route::post('/bookings', [HM_BookingController::class, 'bookings']);
         Route::post('/bookings/{id}', [HM_BookingController::class, 'update_booking_status']);
 
-
         Route::get('/staff', [StaffController::class, 'index']);
         Route::get('/staff/{id}', [StaffController::class, 'show']);
         Route::post('/staff', [StaffController::class, 'store']);
         Route::put('/staff/{id}', [StaffController::class, 'update']);
         Route::delete('/staff/{id}', [StaffController::class, 'destroy']);
+
+        // ── Housekeeping ─────────────────────────────────────────────────────────
+        Route::get('/housekeeping/dashboard', [HM_HousekeepingController::class, 'dashboard']);
+
+        // Tasks
+        Route::get('/housekeeping/tasks', [HM_HousekeepingController::class, 'tasks']);
+        Route::post('/housekeeping/tasks', [HM_HousekeepingController::class, 'storeTask']);
+        Route::put('/housekeeping/tasks/{id}', [HM_HousekeepingController::class, 'updateTask']);
+        Route::delete('/housekeeping/tasks/{id}', [HM_HousekeepingController::class, 'destroyTask']);
+
+        // Room statuses
+        Route::get('/housekeeping/rooms', [HM_HousekeepingController::class, 'roomStatuses']);
+        Route::put('/housekeeping/rooms/{id}/status', [HM_HousekeepingController::class, 'updateRoomStatus']);
+
+        // Logs
+        Route::get('/housekeeping/logs', [HM_HousekeepingController::class, 'logs']);
+
+        // Maintenance Issues
+        Route::get('/housekeeping/issues', [HM_HousekeepingController::class, 'issues']);
+        Route::post('/housekeeping/issues', [HM_HousekeepingController::class, 'storeIssue']);
+        Route::put('/housekeeping/issues/{id}', [HM_HousekeepingController::class, 'updateIssue']);
     });
 });
