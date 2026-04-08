@@ -5,12 +5,16 @@ namespace App\Http\Controllers\Api\Hotel_manager;
 use App\Http\Controllers\Controller;
 use App\Models\Staff;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 
 class StaffController extends Controller
 {
     public function index(){
         try {
-            $staff=Staff::all();
+            $staff = Cache::remember('hm_staff_list', 300, function () {
+                return Staff::all();
+            });
+
             return response()->json([
                 'status'=>200,
                 'message'=>'Success',
@@ -58,6 +62,7 @@ class StaffController extends Controller
                 'avatar'=>'required'
             ]);
             $staff=Staff::create($validate);
+            Cache::forget('hm_staff_list');
             return response()->json([
                 'status'=>200,
                 'message'=>'Success',
@@ -84,6 +89,7 @@ class StaffController extends Controller
             $staff=Staff::find($id);
             if($staff){
                 $staff->update($validate);
+                Cache::forget('hm_staff_list');
                 return response()->json([
                     'status'=>200,
                     'message'=>'Success',
@@ -108,6 +114,7 @@ class StaffController extends Controller
             $staff=Staff::find($id);
             if($staff){
                 $staff->delete();
+                Cache::forget('hm_staff_list');
                 return response()->json([
                     'status'=>200,
                     'message'=>'Success',
