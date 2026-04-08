@@ -10,6 +10,7 @@ use App\Models\RoomNumber;
 use App\Models\Staff;
 use Auth;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 
 class HM_HousekeepingController extends Controller
 {
@@ -20,42 +21,61 @@ class HM_HousekeepingController extends Controller
     public function dashboard(Request $request)
     {
         $user = Auth::user();
+        $cacheKey = 'hk_dashboard_user_' . $user->id;
 
-        // Lấy tất cả room_numbers thuộc hotel của manager
-        $roomNumberIds = RoomNumber::whereHas('room.hotel', function ($q) use ($user) {
-            $q->withoutGlobalScopes()->where('user_id', $user->id);
-        })->pluck('id');
+        $data = Cache::remember($cacheKey, 300, function () use ($user) {
+            $today = now()->toDateString();
+            
+            // Base query for all room numbers belonging to this user's hotels
+            $baseQuery = RoomNumber::join('rooms', 'room_numbers.room_id', '=', 'rooms.id')
+                ->join('hotels', 'rooms.hotel_id', '=', 'hotels.id')
+                ->withoutGlobalScopes()
+                ->where('hotels.user_id', $user->id);
 
-        $today = now()->toDateString();
+            // Thống kê hk_status
+            $hkStats = (clone $baseQuery)
+                ->selectRaw('hk_status, COUNT(*) as count')
+                ->groupBy('hk_status')
+                ->pluck('count', 'hk_status');
 
-        // Thống kê hk_status
-        $hkStats = RoomNumber::whereIn('id', $roomNumberIds)
-            ->selectRaw('hk_status, COUNT(*) as count')
-            ->groupBy('hk_status')
-            ->pluck('count', 'hk_status');
+            // Thống kê tasks hôm nay
+            $taskStats = HousekeepingTask::join('room_numbers', 'housekeeping_tasks.room_number_id', '=', 'room_numbers.id')
+                ->join('rooms', 'room_numbers.room_id', '=', 'rooms.id')
+                ->join('hotels', 'rooms.hotel_id', '=', 'hotels.id')
+                ->withoutGlobalScopes()
+                ->where('hotels.user_id', $user->id)
+                ->where('scheduled_date', $today)
+                ->selectRaw('task_status, COUNT(*) as count')
+                ->groupBy('task_status')
+                ->pluck('count', 'task_status');
 
-        // Thống kê tasks hôm nay
-        $taskStats = HousekeepingTask::whereIn('room_number_id', $roomNumberIds)
-            ->where('scheduled_date', $today)
-            ->selectRaw('task_status, COUNT(*) as count')
-            ->groupBy('task_status')
-            ->pluck('count', 'task_status');
+            // Thống kê sự cố bảo trì
+            $issueStats = MaintenanceIssue::join('room_numbers', 'maintenance_issues.room_number_id', '=', 'room_numbers.id')
+                ->join('rooms', 'room_numbers.room_id', '=', 'rooms.id')
+                ->join('hotels', 'rooms.hotel_id', '=', 'hotels.id')
+                ->withoutGlobalScopes()
+                ->where('hotels.user_id', $user->id)
+                ->selectRaw('issue_status, COUNT(*) as count')
+                ->groupBy('issue_status')
+                ->pluck('count', 'issue_status');
 
-        // Thống kê sự cố bảo trì
-        $issueStats = MaintenanceIssue::whereIn('room_number_id', $roomNumberIds)
-            ->selectRaw('issue_status, COUNT(*) as count')
-            ->groupBy('issue_status')
-            ->pluck('count', 'issue_status');
-
-        return response()->json([
-            'status'  => true,
-            'data'    => [
+            return [
                 'hk_status'   => $hkStats,
                 'tasks_today' => $taskStats,
                 'issues'      => $issueStats,
-                'total_rooms' => count($roomNumberIds),
-            ],
+                'total_rooms' => (clone $baseQuery)->count(),
+            ];
+        });
+
+        return response()->json([
+            'status'  => true,
+            'data'    => $data,
         ]);
+    }
+
+    private function clearDashboardCache()
+    {
+        Cache::forget('hk_dashboard_user_' . Auth::id());
     }
 
     // ---------------------------------------------------------------------------
@@ -120,6 +140,7 @@ class HM_HousekeepingController extends Controller
 
         $task = HousekeepingTask::create($validated);
         $task->load(['roomNumber.room', 'assignedStaff:id,name,avatar']);
+        $this->clearDashboardCache();
 
         return response()->json([
             'status'  => true,
@@ -163,6 +184,7 @@ class HM_HousekeepingController extends Controller
 
         $task->update($validated);
         $task->load(['roomNumber.room', 'assignedStaff:id,name,avatar']);
+        $this->clearDashboardCache();
 
         return response()->json([
             'status'  => true,
@@ -179,6 +201,7 @@ class HM_HousekeepingController extends Controller
     {
         $task = HousekeepingTask::findOrFail($id);
         $task->delete();
+        $this->clearDashboardCache();
 
         return response()->json([
             'status'  => true,
@@ -194,27 +217,28 @@ class HM_HousekeepingController extends Controller
     {
         $user = Auth::user();
 
-        $query = RoomNumber::whereHas('room.hotel', function ($q) use ($user) {
-            $q->withoutGlobalScopes()->where('user_id', $user->id);
-        })->with([
-            'room:id,room_type,hotel_id',
-            'room.hotel:id,name,province',   // ← sửa thành province (vì bảng hotel không có cột address)
-        ]);
+        // Use Join to fetch rooms belonging to the manager's hotels
+        $query = RoomNumber::join('rooms', 'room_numbers.room_id', '=', 'rooms.id')
+            ->join('hotels', 'rooms.hotel_id', '=', 'hotels.id')
+            ->withoutGlobalScopes()
+            ->where('hotels.user_id', $user->id)
+            ->with([
+                'room:id,room_type,hotel_id',
+                'room.hotel:id,name,province',
+            ]);
 
         if ($request->filled('hk_status')) {
-            $query->where('hk_status', $request->hk_status);
+            $query->where('room_numbers.hk_status', $request->hk_status);
         }
 
         if ($request->filled('hotel_id')) {
-            $query->whereHas('room', function ($q) use ($request) {
-                $q->where('hotel_id', $request->hotel_id);
-            });
+            $query->where('rooms.hotel_id', $request->hotel_id);
         }
 
-        $rooms = $query->get(['id', 'room_number', 'hk_status', 'fo_status', 'do_not_disturb', 'room_id']);
+        // Get total counts and info grouped by hotel using SQL for performance
+        $rooms = $query->get(['room_numbers.id', 'room_number', 'hk_status', 'fo_status', 'do_not_disturb', 'room_numbers.room_id']);
 
-        // Group theo hotel trả về cấu trúc rõ ràng
-        $grouped = $rooms->groupBy(fn($r) => $r->room->hotel_id ?? 0)
+        $grouped = $rooms->groupBy('room.hotel_id')
             ->map(function ($hotelRooms) {
                 $hotel = $hotelRooms->first()->room->hotel;
                 return [
@@ -268,6 +292,8 @@ class HM_HousekeepingController extends Controller
                 'new_status'     => $validated['hk_status'],
             ]);
         }
+
+        $this->clearDashboardCache();
 
         return response()->json([
             'status'  => true,
@@ -369,6 +395,7 @@ class HM_HousekeepingController extends Controller
 
         $issue = MaintenanceIssue::create($validated);
         $issue->load(['roomNumber.room', 'reportedBy:id,name,avatar']);
+        $this->clearDashboardCache();
 
         return response()->json([
             'status'  => true,
@@ -404,6 +431,7 @@ class HM_HousekeepingController extends Controller
         }
 
         $issue->update($validated);
+        $this->clearDashboardCache();
 
         return response()->json([
             'status'  => true,
