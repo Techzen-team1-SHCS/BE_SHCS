@@ -8,16 +8,12 @@ use App\Models\Hotel;
 use App\Models\Hotel_Style;
 use App\Models\Image;
 use App\Models\Room;
-use App\Models\Style;
 use CloudinaryLabs\CloudinaryLaravel\Facades\Cloudinary;
 use App\Services\HotelService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Password;
-use Maatwebsite\Excel\Facades\Excel;
-use PhpOffice\PhpSpreadsheet\IOFactory;
+
 
 class HotelController extends Controller
 {

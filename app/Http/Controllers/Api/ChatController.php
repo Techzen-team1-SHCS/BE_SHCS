@@ -131,9 +131,17 @@ Lưu ý: Nếu đang hỏi ngược lại người dùng để lấy thêm thôn
         $decoded = json_decode($clean, true);
 
         if (!$decoded) {
+            $isOverloaded = str_contains(strtolower($aiResponse), '503') || str_contains(strtolower($aiResponse), 'high demand');
+            if ($isOverloaded) {
+                 return response()->json([
+                     'status' => 200,
+                     'reply' => '🤖 Hệ thống AI hiện đang xử lý quá nhiều yêu cầu. Bạn vui lòng đợi vài giây rồi thử lại nhé!',
+                     'hotels' => []
+                 ]);
+            }
             return response()->json([
                 'status' => 500,
-                'message' => 'AI trả JSON không hợp lệ',
+                'message' => 'AI trả JSON không hợp lệ / Lỗi kết nối AI',
                 'raw' => $aiResponse
             ], 500);
         }
