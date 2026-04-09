@@ -26,7 +26,10 @@ class ProcessBookingAfterCreation implements ShouldQueue
 
     public function handle()
     {
-        // Gửi thông báo
+        // Đảm bảo load đầy đủ quan hệ để lấy tên user và hotel
+        $this->booking->loadMissing(['user', 'room.hotel']);
+
+        // ─── 1. Gửi thông báo cho CUSTOMER ───────────────────────────────
         NotificationHelper::send(
             $this->booking->user_id,
             'booking',
@@ -39,7 +42,18 @@ class ProcessBookingAfterCreation implements ShouldQueue
         $room = $this->booking->room;
         $hotelOwnerId = $room->hotel->user_id ?? null;
 
-        // ─── 2.5 Notify HOTEL MANAGER: phòng sắp hết 🟡 ────────────────────
+        // ─── 2. Gửi thông báo cho HOTEL MANAGER (Đơn hàng mới) 🔵 ─────────
+        if ($hotelOwnerId) {
+            NotificationHelper::send(
+                $hotelOwnerId,
+                'new_booking',
+                '📬 Bạn có đơn đặt phòng mới',
+                "Khách hàng {$this->booking->user->name} vừa đặt phòng #{$this->booking->id}.",
+                ['booking_id' => $this->booking->id]
+            );
+        }
+
+        // ─── 3. Notify HOTEL MANAGER: phòng sắp hết 🟡 ────────────────────
         if ($hotelOwnerId && $this->newQuantity > 0 && $this->newQuantity <= 2) {
             NotificationHelper::send(
                 $hotelOwnerId,

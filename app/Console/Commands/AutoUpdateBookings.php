@@ -33,10 +33,10 @@ class AutoUpdateBookings extends Command
     {
         $now = Carbon::now();
 
-        // Hủy các booking pending quá hạn sau 15 phút và hoàn phòng/room numbers
+        // Hủy các booking pending quá hạn sau 10 phút và hoàn phòng/room numbers
         $expiredPendingBookings = Booking::where('status', 'pending')
             ->where('payment_status', '!=', 'paid')
-            ->where('created_at', '<=', $now->copy()->subMinutes(15))
+            ->where('created_at', '<=', $now->copy()->subMinutes(10))
             ->get();
 
         foreach ($expiredPendingBookings as $booking) {
@@ -61,7 +61,7 @@ class AutoUpdateBookings extends Command
                 ]);
 
                 DB::commit();
-                Log::info("Booking #{$booking->id} auto-cancelled after 15 minutes.");
+                Log::info("Booking #{$booking->id} auto-cancelled after 10 minutes.");
             } catch (\Throwable $e) {
                 DB::rollBack();
                 Log::error("Failed auto-cancel booking #{$booking->id}: " . $e->getMessage());

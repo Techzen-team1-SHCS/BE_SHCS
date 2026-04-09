@@ -9,6 +9,7 @@ Backend API được xây dựng bằng **Laravel 10**, cung cấp các dịch v
 
 ---
 
+ngrok http 80
 -Check redis: redis-cli -n 1 keys _top_hotels_
 cd /mnt/d/SHCS_Booking/Hotel-Booking-BE chạy với ubuntu giúp tăng tốc độ
 Lệnh:

@@ -87,11 +87,10 @@ class HM_HousekeepingController extends Controller
     {
         $user = Auth::user();
 
-        $roomNumberIds = RoomNumber::whereHas('room.hotel', function ($q) use ($user) {
-            $q->withoutGlobalScopes()->where('user_id', $user->id);
-        })->pluck('id');
-
-        $query = HousekeepingTask::whereIn('room_number_id', $roomNumberIds)
+        // Gộp trực tiếp vào query chính
+        $query = HousekeepingTask::whereHas('roomNumber.room.hotel', function ($q) use ($user) {
+                $q->withoutGlobalScopes()->where('user_id', $user->id);
+            })
             ->with([
                 'roomNumber:id,room_number,hk_status,fo_status,do_not_disturb,room_id',
                 'roomNumber.room:id,room_type,hotel_id',
@@ -119,7 +118,7 @@ class HM_HousekeepingController extends Controller
             'status' => true,
             'data'   => $tasks,
         ]);
-    }
+}
 
     // ---------------------------------------------------------------------------
     // 3. CREATE TASK

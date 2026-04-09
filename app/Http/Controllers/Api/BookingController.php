@@ -5,11 +5,13 @@ namespace App\Http\Controllers\Api;
 use App\Events\BookingCreated;
 use App\Events\RoomQuantityUpdated;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\StoreBookingRequest;
 use App\Models\Booking;
 use App\Models\Notification;
 use App\Models\Payment;
 use App\Models\Room;
 use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
@@ -23,8 +25,11 @@ use App\Services\BookingService;
 
 class BookingController extends Controller
 {
-    public function __construct(private readonly BookingService $bookingService)
+    protected $bookingService;
+
+    public function __construct(BookingService $bookingService)
     {
+        $this->bookingService = $bookingService;
     }
 
     public function index()
@@ -99,88 +104,13 @@ class BookingController extends Controller
         ], 200);
     }
 
-    public function store(Request $request)
+    public function store(StoreBookingRequest $request)
     {
-        $request->validate([
-            'user_id'  => 'required|exists:users,id',
-            'room_id'  => 'required|exists:rooms,id',
-            'check_in' => 'required|date|after_or_equal:today',
-            'check_out'=> 'required|date|after:check_in',
-            'quantity' => 'required|integer|min:1',
-            'selected_room_numbers' => 'nullable|string'
-        ]);
-        
-        DB::beginTransaction();
-        try {
-            $room = Room::where('id', $request->room_id)
-                ->lockForUpdate()
-                ->first();
+        $result = $this->bookingService->createBooking($request->validated());
+        $status = $result['status'];
+        unset($result['status']);
 
-            if (!$room) {
-                return response()->json(['message' => 'Room not found'], 404);
-            }
-
-            if ($room->quantity < $request->quantity) {
-                DB::rollBack();
-                return response()->json([
-                    'message'            => 'Not enough rooms available',
-                    'available_quantity' => $room->quantity
-                ], 400);
-            }
-
-            $nights = Carbon::parse($request->check_in)
-                ->diffInDays(Carbon::parse($request->check_out));
-
-            $totalPrice = $room->price * $nights * $request->quantity;
-            
-            $booking = Booking::create([
-                'user_id'   => $request->user_id,
-                'room_id'   => $request->room_id,
-                'check_in'  => $request->check_in,
-                'check_out' => $request->check_out,
-                'quantity'  => $request->quantity,
-                'selected_room_numbers' => $request->selected_room_numbers,
-                'total_price' => $totalPrice,
-                'status'    => 'pending',
-            ]);
-
-            $dayOfWeek = strtoupper(substr(now()->format('l'), 0, 2));
-            $booking->payment_code = $dayOfWeek . now()->format('dm') . $booking->id;
-            $booking->save(); // Lệnh save() này sẽ bỏ qua $fillable và ép lưu thẳng xuống Database
-            $room->decrement('quantity', $request->quantity);
-            $newQuantity = $room->fresh()->quantity;
-
-            // 🔹 Cập nhật trạng thái các RoomNumber cụ thể thành 'booked'
-            if ($request->selected_room_numbers) {
-                $roomNumArray = explode(',', $request->selected_room_numbers);
-                $roomNumArray = array_map('trim', $roomNumArray);
-                
-                \App\Models\RoomNumber::where('room_id', $request->room_id)
-                    ->whereIn('room_number', $roomNumArray)
-                    ->update(['status' => 'booked']);
-            }
-
-            DB::commit();
-
-            // Dispatch job async (notify user + HM + broadcast)
-            ProcessBookingAfterCreation::dispatch($booking, $newQuantity);
-            Cache::forget('dashboard_stats');
-            Cache::forget('dashboard_summary');
-
-            return response()->json([
-                'success'            => true,
-                'message'            => 'Booking created successfully',
-                'data'               => $booking,
-                'available_quantity' => $newQuantity
-            ], 201);
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to create booking',
-                'error'   => $e->getMessage()
-            ], 500);
-        }
+        return response()->json($result, $status);
     }
 
     public function update($id, Request $request)
