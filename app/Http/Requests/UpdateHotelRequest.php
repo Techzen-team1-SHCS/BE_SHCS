@@ -28,7 +28,8 @@ class UpdateHotelRequest extends FormRequest
             'text'              => 'nullable|string',
             'price'             => 'nullable|numeric|min:0',
             'name_nearby_place' => 'nullable|string|max:255',
-            'hotel_class'       => 'nullable|decimal:1',
+            'amenities'        => 'nullable|array',
+            'hotel_class'       => 'nullable|between:1,5',
             'styles.*'          => 'nullable|integer|exists:styles,id',
             'images'            => 'array',   // ✅ nhiều ảnh
             'images.*'          => 'image|mimes:jpg,jpeg,png,webp,gif|max:2048'

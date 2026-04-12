@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreHotelRequest;
+use App\Http\Requests\UpdateHotelRequest;
 use App\Models\Hotel;
 use App\Models\Hotel_Style;
 use App\Models\Image;
@@ -23,12 +24,17 @@ class HotelController extends Controller
 
     public function index()
     {
+        // Lấy page và per_page từ request
+        $page = (int) request('page', 1);
+        $perPage = (int) request('per_page', 20);
+        
         $hotels = Hotel::with([
                 'firstimage:id,reference_id,url'
-            ])->paginate((int) request('per_page', 20));
+            ])->paginate($perPage, ['*'], 'page', $page);
+            
         return response()->json([
             'status' => 'success',
-            'content' => $hotels->items(),
+            'data' => $hotels->items(),
             'pagination' => [
                 'current_page' => $hotels->currentPage(),
                 'last_page' => $hotels->lastPage(),
@@ -344,7 +350,7 @@ class HotelController extends Controller
     }
 
 
-    public function update(StoreHotelRequest $request, $id)
+    public function update(UpdateHotelRequest $request, $id)
     {
         $validated = $request->validated();
 
@@ -360,6 +366,8 @@ class HotelController extends Controller
                 'price'             => $validated['price'],
                 'name_nearby_place' => $validated['name_nearby_place'],
                 'hotel_class'       => $validated['hotel_class'],
+                'amenities'        => $validated['amenities'] ?? $hotel->amenities,
+                'text'              => $validated['text'] ?? $hotel->text,
             ]);
 
             // Update styles (nếu không gửi thì xoá hết)

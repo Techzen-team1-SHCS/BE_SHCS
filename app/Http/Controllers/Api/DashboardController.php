@@ -184,7 +184,7 @@ class DashboardController extends Controller
             ->keyBy('room_type');
 
         $ratingAgg = DB::table('rooms')
-            ->leftJoin('comments', 'comments.hotel_id', '=', 'rooms.hotel_id')
+            ->leftJoin('comments', 'comments.maHotel', '=', 'rooms.hotel_id')
             ->selectRaw('rooms.room_type as room_type, ROUND(AVG(comments.rating), 1) as average_rating')
             ->groupBy('rooms.room_type')
             ->get()

@@ -81,6 +81,9 @@ Route::group(['prefix' => 'auth'], function () {
     // ImageKit Auth
     Route::get('/imagekit-auth', [ImageKitController::class, 'getAuthParams']);
 
+    // Maintenance Status
+    Route::get('/maintenance/status', [\App\Http\Controllers\Api\Admin\SystemSettingController::class, 'getStatus']);
+
 
     //discount
     Route::post('/booking/{id}/apply-discount', [DiscountController::class, 'applyDiscount']);
@@ -164,6 +167,9 @@ Route::group(['prefix' => 'auth'], function () {
         Route::post('/room', [RoomController::class, 'store']);
         Route::put('/room/{id}', [RoomController::class, 'update']);
         Route::delete('/room/{id}', [RoomController::class, 'destroy']);
+        
+        // System Settings (Admin only)
+        Route::post('/admin/maintenance/toggle', [\App\Http\Controllers\Api\Admin\SystemSettingController::class, 'toggle']);
     });
     Route::middleware(['auth:api','role:2'])->prefix('hotel-manager')->group(function(){
         Route::get('/hotels', [HM_HotelController::class, 'owner']);
