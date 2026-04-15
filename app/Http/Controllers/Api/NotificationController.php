@@ -38,6 +38,10 @@ class NotificationController extends Controller
             $query->where('is_read', false);
         }
 
+        if ($request->boolean('read')) {
+            $query->where('is_read', true);
+        }
+
         $limit         = (int) $request->get('limit', 20);
         $notifications = $query->paginate($limit);
 

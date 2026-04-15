@@ -1,17 +1,14 @@
 <?php
 
 namespace App\Services;
+use App\Jobs\HandleBookingCreated;
+use App\Jobs\HandleBookingCancelled;
 use Illuminate\Support\Facades\Redis;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Cache;
 use Carbon\Carbon;
 use App\Models\Room;
 use App\Models\Booking;
-use App\Models\RoomNumber;
-use App\Jobs\ProcessBookingAfterCreation;
-use App\Jobs\AutoCancelBooking;
-
 class BookingService
 {
     public function buildCancellationData(int $totalPrice, int $diffDays, int $cancelFreeDays): array
@@ -27,43 +24,75 @@ class BookingService
    
         return ['cancel_fee' => $totalPrice, 'refund_amount' => 0, 'is_free' => false];
     }
-    
     public function createBooking(array $data)
     {
         $userId = $data['user_id'];
 
-        // 1. Kiểm tra Spam (Rate Limit)
+        // 1. Rate Limit
         $apiRateLimitKey = 'rate_limit_booking:' . $userId;
         if (RateLimiter::tooManyAttempts($apiRateLimitKey, 5)) {
-            return ['success' => false, 'status' => 429, 'message' => 'Bạn đang thao tác quá nhanh. Vui lòng thử lại sau 1 phút.'];
+            return [
+                'success' => false,
+                'status' => 429,
+                'message' => 'Bạn đang thao tác quá nhanh. Vui lòng thử lại sau 1 phút.'
+            ];
         }
         RateLimiter::hit($apiRateLimitKey, 60);
 
-        // 2. Kiểm tra Đầu cơ (Anti-Hoarding)
+        // 2. Anti-Hoarding
         $userHoldingKey = 'user_pending_bookings:' . $userId;
-        if ((Redis::get($userHoldingKey) ?: 0) >= 3) {
-            return ['success' => false, 'status' => 429, 'message' => 'Bạn đang có quá nhiều đơn hàng chưa thanh toán.'];
+
+        $count = Redis::get($userHoldingKey);
+
+        if ($count === null) {
+            $count = Booking::where('user_id', $userId)
+                ->where('status', 'pending')
+                ->where('created_at', '>=', now()->subMinutes(15))
+                ->count();
+
+            Redis::setex($userHoldingKey, 900, $count);
         }
 
-        // 3. Xử lý Database Transaction
+        if ((int)$count >= 3) {
+            return [
+                'success' => false,
+                'status' => 429,
+                'message' => 'Bạn đang có quá nhiều đơn hàng chưa thanh toán.'
+            ];
+        }
+
         DB::beginTransaction();
+
         try {
-            $room = Room::where('id', $data['room_id'])->lockForUpdate()->first();
+            $room = Room::where('id', $data['room_id'])
+                ->lockForUpdate()
+                ->first();
 
             if (!$room) {
-                return ['success' => false, 'status' => 404, 'message' => 'Không tìm thấy phòng.'];
+                return [
+                    'success' => false,
+                    'status' => 404,
+                    'message' => 'Không tìm thấy phòng.'
+                ];
             }
 
             if ($room->quantity < $data['quantity']) {
                 DB::rollBack();
-                return ['success' => false, 'status' => 400, 'message' => 'Không đủ số lượng phòng trống.', 'available_quantity' => $room->quantity];
+                return [
+                    'success' => false,
+                    'status' => 400,
+                    'message' => 'Không đủ số lượng phòng trống.',
+                    'available_quantity' => $room->quantity
+                ];
             }
 
-            // Tính toán giá tiền
-            $nights = Carbon::parse($data['check_in'])->diffInDays(Carbon::parse($data['check_out']));
+            // Tính toán giá
+            $nights = Carbon::parse($data['check_in'])
+                ->diffInDays(Carbon::parse($data['check_out']));
+
             $totalPrice = $room->price * $nights * $data['quantity'];
-            
-            // Tạo Booking
+
+            // Create booking
             $booking = Booking::create([
                 'user_id'   => $userId,
                 'room_id'   => $data['room_id'],
@@ -75,31 +104,35 @@ class BookingService
                 'status'    => 'pending',
             ]);
 
-            $booking->payment_code = strtoupper(substr(now()->format('l'), 0, 2)) . now()->format('dm') . $booking->id;
+            $booking->payment_code =
+                strtoupper(substr(now()->format('l'), 0, 2)) .
+                now()->format('dm') .
+                $booking->id;
+
             $booking->save();
-            
-            // Cập nhật số lượng phòng
+
+            // Giữ phòng (QUAN TRỌNG → phải sync)
             $room->decrement('quantity', $data['quantity']);
             $newQuantity = $room->fresh()->quantity;
-            
-            // Cập nhật trạng thái số phòng cụ thể (nếu có)
-            if (!empty($data['selected_room_numbers'])) {
-                $roomNumArray = array_map('trim', explode(',', $data['selected_room_numbers']));
-                RoomNumber::where('room_id', $data['room_id'])
-                    ->whereIn('room_number', $roomNumArray)
-                    ->update(['status' => 'booked']);
-            }
 
             DB::commit();
-
-            // 4. Các tác vụ Post-Creation (Sau khi tạo thành công)
             Redis::incr($userHoldingKey);
-            Redis::expire($userHoldingKey, 900); // 15 phút
+            Redis::expire($userHoldingKey, 900);
+            // 🚀 Gửi thông báo REALTIME ngay lập tức cho khách hàng
+            \App\Helpers\NotificationHelper::send(
+                $userId,
+                'booking',
+                'Đặt phòng thành công',
+                "Booking #{$booking->id} của bạn đã được đặt thành công. Vui lòng kiểm tra lại đơn hàng.",
+                ['booking_id' => $booking->id]
+            );
 
-            ProcessBookingAfterCreation::dispatch($booking, $newQuantity);
-            AutoCancelBooking::dispatch($booking->id)->delay(now()->addMinutes(10));
-            Cache::forget('dashboard_stats');
-            Cache::forget('dashboard_summary');
+            // 🔥 Dispatch 1 job duy nhất xử lý các tác vụ background (Manager notifications, RoomNumber, etc.)
+            HandleBookingCreated::dispatch(
+                $booking->id,
+                $newQuantity,
+                $data['selected_room_numbers']
+            )->onQueue('booking');
 
             return [
                 'success' => true,
@@ -108,10 +141,113 @@ class BookingService
                 'data'    => $booking,
                 'available_quantity' => $newQuantity
             ];
-            
+
         } catch (\Exception $e) {
             DB::rollBack();
-            return ['success' => false, 'status' => 500, 'message' => 'Lỗi hệ thống khi đặt phòng.', 'error' => $e->getMessage()];
+
+            return [
+                'success' => false,
+                'status' => 500,
+                'message' => 'Lỗi hệ thống khi đặt phòng.',
+                'error' => $e->getMessage()
+            ];
+        }
+    }
+    public function cancelBooking(int $id)
+    {
+        DB::beginTransaction();
+
+        try {
+            $booking = Booking::with('user')->find($id);
+
+            if (!$booking) {
+                return ['success' => false, 'status' => 404, 'message' => 'Không tìm thấy đơn đặt phòng.'];
+            }
+
+            if ($booking->status === 'cancelled') {
+                return ['success' => false, 'status' => 400, 'message' => 'Đơn đặt phòng này đã được hủy trước đó.'];
+            }
+
+            $now             = Carbon::now();
+            $checkIn         = Carbon::parse($booking->check_in);
+            $cancelFreeDays  = $booking->cancel_free_days ?? 3;
+            $diffDays        = $now->diffInDays($checkIn, false);
+
+            if ($now->isSameDay($checkIn)) {
+                $diffDays = 0;
+            }
+
+            $cancelData = $this->buildCancellationData(
+                (int) $booking->total_price,
+                (int) $diffDays,
+                (int) $cancelFreeDays
+            );
+            
+            $cancelFee = $cancelData['cancel_fee'];
+            $refundAmount = $cancelData['refund_amount'];
+            $isFree = $cancelData['is_free'];
+
+            // 1. Lock room và cập nhật số lượng (QUAN TRỌNG → Sync)
+            $room = Room::where('id', $booking->room_id)->lockForUpdate()->first();
+            if (!$room) {
+                throw new \Exception("Không tìm thấy thông tin phòng cho đơn hàng #{$booking->id}");
+            }
+
+            $newQuantity = $room->quantity + $booking->quantity;
+            $room->update(['quantity' => $newQuantity]);
+
+            // 2. Cập nhật trạng thái Booking (Sync)
+            $booking->update([
+                'status'         => 'cancelled',
+                'cancel_fee'     => $cancelFee,
+                'cancelled_at'   => now(),
+                'payment_status' => $refundAmount > 0 ? 'refunded' : 'not_refunded'
+            ]);
+
+            // 3. Hoàn tiền vào ví (Sync)
+            if ($refundAmount > 0 && $booking->user) {
+                $booking->user->increment('wallet_balance', $refundAmount);
+            }
+
+            DB::commit();
+            $userHoldingKey = 'user_pending_bookings:' . $booking->user_id;
+
+            // 🚀 Xóa key để ép hệ thống đếm lại từ DB ở lần đặt phòng tiếp theo (An toàn hơn trừ 1)
+            Redis::del($userHoldingKey);
+            // 🚀 Gửi thông báo REALTIME ngay lập tức cho khách hàng
+            \App\Helpers\NotificationHelper::send(
+                $booking->user_id,
+                'cancel_booking',
+                'Hủy phòng thành công',
+                "Booking #{$booking->id} của bạn đã được hủy. Tiền đã được hoàn lại vào ví.",
+                ['booking_id' => $booking->id]
+            );
+
+            // 4. 🔥 Dispatch Job xử lý các tác vụ nặng (Async)
+            \App\Jobs\HandleBookingCancelled::dispatch($booking->id, $newQuantity)->onQueue('booking');
+
+            return [
+                'success' => true,
+                'status'  => 200,
+                'message' => $isFree
+                    ? 'Hủy phòng thành công, không mất phí.'
+                    : 'Hủy phòng thành công, phí hủy: ' . number_format($cancelFee, 0, ',', '.') . ' VND.',
+                'data' => [
+                    'booking_id'         => $booking->id,
+                    'cancel_fee'         => $cancelFee,
+                    'refund_amount'      => $refundAmount,
+                    'is_free'            => $isFree,
+                    'available_quantity' => $newQuantity,
+                ]
+            ];
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return [
+                'success' => false,
+                'status'  => 500,
+                'message' => 'Lỗi hệ thống khi hủy đặt phòng.',
+                'error'   => $e->getMessage()
+            ];
         }
     }
 }

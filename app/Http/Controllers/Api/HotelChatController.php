@@ -95,7 +95,16 @@ class HotelChatController extends Controller
         ]);
 
         try {
+            // Broadcast cho thread (room chat hiện tại)
             broadcast(new HotelChatMessageSent($thread, $message))->toOthers();
+
+            // Broadcast cho manager (để update sidebar/danh sách chat)
+            if ($thread->hm_id) {
+                broadcast(new HotelChatMessageSent($thread, $message))
+                    ->toOthers()
+                    ->onQueue('default')
+                    ->broadcastOn([new \Illuminate\Broadcasting\PrivateChannel('hotel-manager.' . $thread->hm_id)]);
+            }
         } catch (\Exception $e) {
             Log::error('HotelChat broadcast error: '. $e->getMessage());
         }

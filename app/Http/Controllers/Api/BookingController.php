@@ -2,16 +2,11 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Events\BookingCreated;
-use App\Events\RoomQuantityUpdated;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreBookingRequest;
 use App\Models\Booking;
-use App\Models\Notification;
-use App\Models\Payment;
 use App\Models\Room;
 use Carbon\Carbon;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
@@ -20,7 +15,6 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\Rule;
 use App\Helpers\NotificationHelper;
-use App\Jobs\ProcessBookingAfterCreation;
 use App\Services\BookingService;
 
 class BookingController extends Controller
@@ -144,118 +138,14 @@ class BookingController extends Controller
 
     public function cancel($id)
     {
-        DB::beginTransaction();
+        $booking = Booking::findOrFail($id);
+        $this->authorize('delete', $booking);
 
-        try {
-            $booking = Booking::with('room.hotel', 'user')->find($id);
-            $this->authorize('delete', $booking);
+        $result = $this->bookingService->cancelBooking((int)$id);
+        $status = $result['status'];
+        unset($result['status']);
 
-            if (!$booking) {
-                return response()->json(['success' => false, 'message' => 'Booking not found'], 404);
-            }
-
-            if ($booking->status === 'cancelled') {
-                return response()->json(['success' => false, 'message' => 'Booking is already cancelled'], 400);
-            }
-
-            $now             = Carbon::now();
-            $checkIn         = Carbon::parse($booking->check_in);
-            $cancelFreeDays  = $booking->cancel_free_days ?? 3;
-            $diffDays        = $now->diffInDays($checkIn, false);
-
-            if ($now->isSameDay($checkIn)) {
-                $diffDays = 0;
-            }
-
-            $cancelData = $this->bookingService->buildCancellationData(
-                (int) $booking->total_price,
-                (int) $diffDays,
-                (int) $cancelFreeDays
-            );
-            $cancelFee = $cancelData['cancel_fee'];
-            $refundAmount = $cancelData['refund_amount'];
-            $isFree = $cancelData['is_free'];
-
-            $room = Room::where('id', $booking->room_id)->lockForUpdate()->first();
-            if (!$room) {
-                throw new \Exception("Room not found for booking #{$booking->id}");
-            }
-
-            $newQuantity = max($room->quantity + $booking->quantity, 0);
-            $room->update(['quantity' => $newQuantity]);
-
-            $booking->update([
-                'status'         => 'cancelled',
-                'cancel_fee'     => $cancelFee,
-                'cancelled_at'   => now(),
-                'payment_status' => $refundAmount > 0 ? 'refunded' : 'not_refunded'
-            ]);
-
-            // 🔹 Khôi phục trạng thái các RoomNumber cụ thể thành 'available'
-            if ($booking->selected_room_numbers) {
-                $roomNumArray = explode(',', $booking->selected_room_numbers);
-                $roomNumArray = array_map('trim', $roomNumArray);
-
-                \App\Models\RoomNumber::where('room_id', $booking->room_id)
-                    ->whereIn('room_number', $roomNumArray)
-                    ->update(['status' => 'available']);
-            }
-
-            if ($refundAmount > 0 && $booking->user) {
-                $booking->user->wallet_balance += $refundAmount;
-                $booking->user->save();
-            }
-
-            // 🟡 Notify USER: hủy booking thành công
-            NotificationHelper::send(
-                $booking->user_id,
-                'cancel_booking',
-                'Hủy phòng thành công',
-                "Booking #{$booking->id} đã được hủy. Phí hủy: "
-                    . number_format($cancelFee, 0, ',', '.') . ' VND. Hoàn lại: '
-                    . number_format($refundAmount, 0, ',', '.') . ' VND.',
-                ['booking_id' => $booking->id]
-            );
-
-            // 🟡 Notify HOTEL MANAGER: khách hủy booking
-            $hotelOwnerId = optional(optional($booking->room)->hotel)->user_id;
-            if ($hotelOwnerId && $hotelOwnerId !== $booking->user_id) {
-                NotificationHelper::send(
-                    $hotelOwnerId,
-                    'booking_cancelled',
-                    '⚠️ Khách hủy booking',
-                    "Booking #{$booking->id} đã bị hủy bởi khách. Phòng trống trở lại: {$newQuantity}.",
-                    ['booking_id' => $booking->id, 'available_quantity' => $newQuantity]
-                );
-            }
-
-            DB::commit();
-            Cache::forget('dashboard_stats');
-            Cache::forget('dashboard_summary');
-
-            return response()->json([
-                'success' => true,
-                'message' => $isFree
-                    ? 'Hủy phòng thành công, không mất phí.'
-                    : 'Hủy phòng thành công, phí hủy: ' . number_format($cancelFee, 0, ',', '.') . ' VND.',
-                'data' => [
-                    'booking'            => $booking->load(['user', 'room']),
-                    'cancel_fee'         => $cancelFee,
-                    'refund_amount'      => $refundAmount,
-                    'is_free'            => $isFree,
-                    'available_quantity' => $newQuantity,
-                ]
-            ]);
-        } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error("Lỗi hủy booking #{$id}: " . $e->getMessage());
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to cancel booking',
-                'error'   => $e->getMessage()
-            ], 500);
-        }
+        return response()->json($result, $status);
     }
 
     public function processCancelledBookings()

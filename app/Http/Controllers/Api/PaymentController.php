@@ -181,6 +181,9 @@ class PaymentController extends Controller
                         "Booking #{$booking->id} đã thanh toán thành công: " . number_format($booking->total_price,0,',','.') . " VND"
                     );
 
+                    // Dọn dẹp Redis counter để người dùng có thể đặt phòng mới ngay lập tức
+                    \Illuminate\Support\Facades\Redis::del('user_pending_bookings:' . $booking->user_id);
+
                     $this->paymentService->enqueueInvoice($booking->id);
                 }
 

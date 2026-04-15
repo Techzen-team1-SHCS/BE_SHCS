@@ -29,16 +29,6 @@ class ProcessBookingAfterCreation implements ShouldQueue
         // Đảm bảo load đầy đủ quan hệ để lấy tên user và hotel
         $this->booking->loadMissing(['user', 'room.hotel']);
 
-        // ─── 1. Gửi thông báo cho CUSTOMER ───────────────────────────────
-        NotificationHelper::send(
-            $this->booking->user_id,
-            'booking',
-            'Đặt phòng thành công',
-            "Booking #{$this->booking->id} của bạn đã được đặt thành công với tổng giá "
-            . number_format($this->booking->total_price, 0, ',', '.') . " VND.",
-            ['booking_id' => $this->booking->id]
-        );
-
         $room = $this->booking->room;
         $hotelOwnerId = $room->hotel->user_id ?? null;
 

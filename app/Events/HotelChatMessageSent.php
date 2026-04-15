@@ -39,7 +39,7 @@ class HotelChatMessageSent implements ShouldBroadcastNow
                 'sender_id'   => $this->message->sender_id,
                 'content'     => $this->message->content,
                 'type'        => $this->message->type,
-                'created_at'  => $this->message->created_at->toDateTimeString(),
+                'created_at'  => $this->message->created_at->toIso8601String(),
             ],
         ];
     }

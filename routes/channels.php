@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Broadcast;
 
 // Channel mặc định của Laravel (giữ nguyên)
 Broadcast::channel('App.Models.User.{id}', function ($user, $id) {
+    \Illuminate\Support\Facades\Log::info("Authorizing broadcast for user: {$user->id} vs requested id: {$id}");
     return (int) $user->id === (int) $id;
 });
 
