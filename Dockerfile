@@ -1,28 +1,32 @@
-FROM php:8.2-cli
+FROM php:8.2-fpm-alpine AS base
 
-WORKDIR /app
+WORKDIR /var/www/html
 
-# System deps
-RUN apt-get update && apt-get install -y \
-    git unzip curl libzip-dev libonig-dev libpng-dev libjpeg-dev libfreetype6-dev \
-    && rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache \
+    git \
+    curl \
+    unzip \
+    zip \
+    oniguruma-dev \
+    libpng-dev \
+    libjpeg-turbo-dev \
+    freetype-dev \
+    libzip-dev \
+    bash \
+    icu-dev \
+    $PHPIZE_DEPS \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install pdo pdo_mysql mbstring exif pcntl bcmath gd zip intl opcache \
+    && rm -rf /var/cache/apk/*
 
-# PHP extensions
-RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install pdo pdo_mysql mbstring zip gd
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+COPY composer.json composer.lock* ./
+RUN composer install --no-interaction --prefer-dist --no-dev --optimize-autoloader --no-scripts || true
 
-# Composer
-COPY --from=composer:2.7 /usr/bin/composer /usr/bin/composer
-
-# Copy source
+FROM base AS app
 COPY . .
+RUN composer install --no-interaction --prefer-dist --no-dev --optimize-autoloader
+RUN chown -R www-data:www-data /var/www/html
 
-# Install PHP deps
-RUN composer install --no-dev --optimize-autoloader
-
-# Permission
-RUN chown -R www-data:www-data storage bootstrap/cache
-
-EXPOSE 8080
-
-CMD php artisan serve --host=0.0.0.0 --port=$PORT
+EXPOSE 9000
+CMD ["php-fpm", "-F"]
