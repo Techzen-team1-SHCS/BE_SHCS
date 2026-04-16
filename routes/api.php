@@ -121,6 +121,8 @@ Route::group(['prefix' => 'auth'], function () {
         Route::get('/payments', [PaymentController::class, 'index']);
         Route::post('/vnpay/create-payment', [PaymentController::class, 'createPayment']);
         Route::get('/rooms/{id}/realtime', [BookingController::class, 'getRealtimeQuantity']);
+        Route::post('/rooms/hold', [BookingController::class, 'holdRoomNumber']);
+        Route::post('/rooms/release-hold', [BookingController::class, 'releaseRoomNumber']);
         //WishList
         Route::get('/wishlist', [WishListController::class, 'index']);
         Route::get('/Mywishlist', [WishListController::class, 'show']);

@@ -9,7 +9,6 @@ use App\Models\Room;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Http;
@@ -208,14 +207,55 @@ class BookingController extends Controller
             return response()->json(['message' => 'Room not found'], 404);
         }
 
+        $heldRoomNumbers = $this->bookingService->getHeldRoomNumbers((int) $id);
+
         return response()->json([
             'success'            => true,
             'room_id'            => $room->id,
             'available_quantity' => $room->quantity,
+            'held_room_numbers'  => $heldRoomNumbers,
             'room_type'          => $room->room_type,
             'price'              => $room->price,
             'last_updated'       => now()->toISOString()
         ]);
+    }
+
+    public function holdRoomNumber(Request $request)
+    {
+        $data = $request->validate([
+            'room_id' => 'required|integer|exists:rooms,id',
+            'room_number' => 'required|string',
+        ]);
+
+        $result = $this->bookingService->holdRoomNumber(
+            (int) $data['room_id'],
+            (string) $data['room_number'],
+            (int) Auth::id()
+        );
+
+        $status = $result['status'];
+        unset($result['status']);
+
+        return response()->json($result, $status);
+    }
+
+    public function releaseRoomNumber(Request $request)
+    {
+        $data = $request->validate([
+            'room_id' => 'required|integer|exists:rooms,id',
+            'room_number' => 'required|string',
+        ]);
+
+        $result = $this->bookingService->releaseRoomNumber(
+            (int) $data['room_id'],
+            (string) $data['room_number'],
+            (int) Auth::id()
+        );
+
+        $status = $result['status'];
+        unset($result['status']);
+
+        return response()->json($result, $status);
     }
 
     public function generateQR(Request $request)

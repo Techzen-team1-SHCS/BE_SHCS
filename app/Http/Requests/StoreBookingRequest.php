@@ -27,7 +27,7 @@ class StoreBookingRequest extends FormRequest
             'check_in' => 'required|date|after_or_equal:today',
             'check_out'=> 'required|date|after:check_in',
             'quantity' => 'required|integer|min:1',
-            'selected_room_numbers' => 'nullable|string'
+            'selected_room_numbers' => 'nullable'
         ];
     }
 

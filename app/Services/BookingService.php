@@ -2,7 +2,7 @@
 
 namespace App\Services;
 use App\Jobs\HandleBookingCreated;
-use App\Jobs\HandleBookingCancelled;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Redis;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\DB;
@@ -61,6 +61,14 @@ class BookingService
             ];
         }
 
+        $selectedRoomNumbers = $this->normalizeRoomNumbers($data['selected_room_numbers'] ?? null);
+        $holdDuration = 5 * 60;
+        $bookingHoldKeys = [];
+
+        foreach ($selectedRoomNumbers as $roomNumber) {
+            $bookingHoldKeys[] = 'room_hold:' . $data['room_id'] . ':' . $roomNumber;
+        }
+
         DB::beginTransaction();
 
         try {
@@ -69,11 +77,54 @@ class BookingService
                 ->first();
 
             if (!$room) {
+                DB::rollBack();
                 return [
                     'success' => false,
                     'status' => 404,
                     'message' => 'Không tìm thấy phòng.'
                 ];
+            }
+
+            if (!empty($selectedRoomNumbers)) {
+                foreach ($bookingHoldKeys as $holdKey) {
+                    if (!Cache::add($holdKey, $userId, $holdDuration)) {
+                        DB::rollBack();
+                        return [
+                            'success' => false,
+                            'status' => 409,
+                            'message' => 'Một hoặc nhiều số phòng bạn chọn đang được giữ tạm thời bởi người khác. Vui lòng chọn phòng khác hoặc thử lại sau vài phút.'
+                        ];
+                    }
+                }
+
+                $conflictingRoomNumbers = Booking::query()
+                    ->where('room_id', $room->id)
+                    ->whereIn('status', ['pending', 'confirmed'])
+                    ->where(function ($query) use ($data) {
+                        $query->where(function ($query) use ($data) {
+                            $query->whereDate('check_in', '<', $data['check_out'])
+                                  ->whereDate('check_out', '>', $data['check_in']);
+                        });
+                    })
+                    ->whereRaw("JSON_VALID(COALESCE(selected_room_numbers, '[]'))")
+                    ->get(['selected_room_numbers'])
+                    ->filter(function ($booking) use ($selectedRoomNumbers) {
+                        $bookedNumbers = $this->normalizeRoomNumbers($booking->selected_room_numbers);
+                        return !empty(array_intersect($bookedNumbers, $selectedRoomNumbers));
+                    })
+                    ->isNotEmpty();
+
+                if ($conflictingRoomNumbers) {
+                    foreach ($bookingHoldKeys as $holdKey) {
+                        Cache::forget($holdKey);
+                    }
+                    DB::rollBack();
+                    return [
+                        'success' => false,
+                        'status' => 409,
+                        'message' => 'Một hoặc nhiều số phòng bạn chọn đã được đặt cho khoảng thời gian này.'
+                    ];
+                }
             }
 
             if ($room->quantity < $data['quantity']) {
@@ -99,7 +150,7 @@ class BookingService
                 'check_in'  => $data['check_in'],
                 'check_out' => $data['check_out'],
                 'quantity'  => $data['quantity'],
-                'selected_room_numbers' => $data['selected_room_numbers'],
+                'selected_room_numbers' => $selectedRoomNumbers ? json_encode($selectedRoomNumbers, JSON_UNESCAPED_UNICODE) : null,
                 'total_price' => $totalPrice,
                 'status'    => 'pending',
             ]);
@@ -145,6 +196,10 @@ class BookingService
         } catch (\Exception $e) {
             DB::rollBack();
 
+            foreach ($bookingHoldKeys as $holdKey) {
+                Cache::forget($holdKey);
+            }
+
             return [
                 'success' => false,
                 'status' => 500,
@@ -153,6 +208,89 @@ class BookingService
             ];
         }
     }
+
+    public function holdRoomNumber(int $roomId, string $roomNumber, int $userId, int $holdDuration = 300): array
+    {
+        $key = 'room_hold:' . $roomId . ':' . $roomNumber;
+        $currentHolder = Cache::get($key);
+
+        if ($currentHolder !== null && (string) $currentHolder !== (string) $userId) {
+            return [
+                'success' => false,
+                'status' => 409,
+                'message' => 'Phòng này đang được giữ tạm thời bởi người khác.'
+            ];
+        }
+
+        Cache::put($key, (string) $userId, $holdDuration);
+
+        return [
+            'success' => true,
+            'status' => 200,
+            'message' => 'Đã giữ chỗ thành công.',
+            'hold_key' => $key
+        ];
+    }
+
+    public function releaseRoomNumber(int $roomId, string $roomNumber, int $userId): array
+    {
+        $key = 'room_hold:' . $roomId . ':' . $roomNumber;
+        $currentHolder = Cache::get($key);
+
+        if ((string) $currentHolder !== (string) $userId) {
+            return [
+                'success' => false,
+                'status' => 403,
+                'message' => 'Bạn không có quyền giải phóng phòng này.'
+            ];
+        }
+
+        Cache::forget($key);
+
+        return [
+            'success' => true,
+            'status' => 200,
+            'message' => 'Đã bỏ giữ chỗ.'
+        ];
+    }
+
+    public function getHeldRoomNumbers(int $roomId): array
+    {
+        $heldRoomNumbers = [];
+
+        try {
+            $keys = Redis::connection()->keys('room_hold:' . $roomId . ':*');
+
+            foreach ($keys as $key) {
+                $parts = explode(':', $key);
+                $heldRoomNumbers[] = end($parts);
+            }
+        } catch (\Exception) {
+            return [];
+        }
+
+        return array_values(array_unique(array_filter(array_map('trim', $heldRoomNumbers), static fn ($value) => $value !== '')));
+    }
+
+    private function normalizeRoomNumbers($roomNumbers): array
+    {
+        if (is_array($roomNumbers)) {
+            return array_values(array_filter(array_map('trim', $roomNumbers), static fn ($value) => $value !== ''));
+        }
+
+        if (is_string($roomNumbers) && $roomNumbers !== '') {
+            $decoded = json_decode($roomNumbers, true);
+
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                return array_values(array_filter(array_map('trim', $decoded), static fn ($value) => $value !== ''));
+            }
+
+            return array_values(array_filter(array_map('trim', preg_split('/[,\s]+/', $roomNumbers) ?: []), static fn ($value) => $value !== ''));
+        }
+
+        return [];
+    }
+
     public function cancelBooking(int $id)
     {
         DB::beginTransaction();
@@ -204,7 +342,13 @@ class BookingService
                 'payment_status' => $refundAmount > 0 ? 'refunded' : 'not_refunded'
             ]);
 
-            // 3. Hoàn tiền vào ví (Sync)
+            // 3. Nhả hold phòng ngay lập tức để người khác đặt lại
+            $selectedRoomNumbers = $this->normalizeRoomNumbers($booking->selected_room_numbers ?? null);
+            foreach ($selectedRoomNumbers as $roomNumber) {
+                Cache::forget('room_hold:' . $booking->room_id . ':' . $roomNumber);
+            }
+
+            // 4. Hoàn tiền vào ví (Sync)
             if ($refundAmount > 0 && $booking->user) {
                 $booking->user->increment('wallet_balance', $refundAmount);
             }
