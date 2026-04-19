@@ -15,7 +15,7 @@ cd /mnt/d/SHCS_Booking/Hotel-Booking-BE chạy với ubuntu giúp tăng tốc đ
 Lệnh:
 +php artisan octane:start --host=0.0.0.0 --port=8000 --workers=4 --watch
 +php artisan reverb:start --host=0.0.0.0 --port=8080
-
++php artisan queue:work --queue=booking,default
 ## 🚀 Cài đặt
 
 ### 1. Yêu cầu hệ thống

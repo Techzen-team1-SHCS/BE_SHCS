@@ -2,7 +2,6 @@
 
 namespace App\Console;
 
-use App\Console\Commands\MakeServiceCommand;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 
@@ -18,6 +17,8 @@ class Kernel extends ConsoleKernel
         $schedule->command('notify:checkin-checkout')->dailyAt('07:00');
         $schedule->command('app:process-cancelled-bookings')->everyTwoMinutes();
         $schedule->command('ai:send-behaviors')->everyMinute();
+        // Warmup cache dự báo AI liên tục để endpoint forecast phản hồi nhanh.
+        $schedule->command('ai:warmup-forecast-cache --horizon=30 --limit=50')->everyFiveSeconds()->withoutOverlapping();
         $schedule->command('metrics:queue-depth')->everyMinute();
     }
 

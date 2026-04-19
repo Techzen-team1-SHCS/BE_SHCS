@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\Api\CommentController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\DiscountController;
+use App\Http\Controllers\Api\ForecastController;
 use App\Http\Controllers\Api\Hotel_manager\HM_AuthController;
 use App\Http\Controllers\Api\Hotel_manager\HM_BookingController;
 use App\Http\Controllers\Api\Hotel_manager\HM_HotelController;
@@ -76,6 +77,11 @@ Route::group(['prefix' => 'auth'], function () {
     Route::get('/comments', [CommentController::class, 'index']);
     //Booking
     Route::get('/booking', [BookingController::class, 'index']);
+
+    // AI Forecast
+    Route::post('/forecast', [ForecastController::class, 'forecast']);
+    Route::post('/forecast/bootstrap', [ForecastController::class, 'bootstrapForecast']);
+
     //Ticket Support
     Route::post('/support-tickets', [SupportTicketController::class, 'store']);
 
