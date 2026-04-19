@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\Hotel_manager;
 use App\Http\Controllers\Controller;
 use App\Models\HousekeepingLog;
 use App\Models\HousekeepingTask;
+use App\Events\HousekeepingUpdated;
 use App\Models\MaintenanceIssue;
 use App\Models\RoomNumber;
 use App\Models\Staff;
@@ -141,6 +142,10 @@ class HM_HousekeepingController extends Controller
         $task->load(['roomNumber.room', 'assignedStaff:id,name,avatar']);
         $this->clearDashboardCache();
 
+        event(new HousekeepingUpdated('task', 'created', $task->roomNumber?->room?->hotel_id, [
+            'task' => $task->id,
+        ]));
+
         return response()->json([
             'status'  => true,
             'message' => 'Tạo nhiệm vụ thành công',
@@ -185,6 +190,10 @@ class HM_HousekeepingController extends Controller
         $task->load(['roomNumber.room', 'assignedStaff:id,name,avatar']);
         $this->clearDashboardCache();
 
+        event(new HousekeepingUpdated('task', 'updated', $task->roomNumber?->room?->hotel_id, [
+            'task' => $task->id,
+        ]));
+
         return response()->json([
             'status'  => true,
             'message' => 'Cập nhật nhiệm vụ thành công',
@@ -201,6 +210,10 @@ class HM_HousekeepingController extends Controller
         $task = HousekeepingTask::findOrFail($id);
         $task->delete();
         $this->clearDashboardCache();
+
+        event(new HousekeepingUpdated('task', 'deleted', $task->roomNumber?->room?->hotel_id, [
+            'task_id' => $task->id,
+        ]));
 
         return response()->json([
             'status'  => true,
@@ -293,6 +306,11 @@ class HM_HousekeepingController extends Controller
         }
 
         $this->clearDashboardCache();
+
+        event(new HousekeepingUpdated('room', 'updated', $room->room?->hotel_id, [
+            'room_number_id' => $room->id,
+            'hk_status' => $room->hk_status,
+        ]));
 
         return response()->json([
             'status'  => true,
@@ -396,6 +414,11 @@ class HM_HousekeepingController extends Controller
         $issue->load(['roomNumber.room', 'reportedBy:id,name,avatar']);
         $this->clearDashboardCache();
 
+        event(new HousekeepingUpdated('issue', 'created', $room->room?->hotel_id, [
+            'issue_id' => $issue->id,
+            'room_number_id' => $room->id,
+        ]));
+
         return response()->json([
             'status'  => true,
             'message' => 'Báo cáo sự cố thành công',
@@ -431,6 +454,11 @@ class HM_HousekeepingController extends Controller
 
         $issue->update($validated);
         $this->clearDashboardCache();
+
+        event(new HousekeepingUpdated('issue', 'updated', $issue->roomNumber?->room?->hotel_id, [
+            'issue_id' => $issue->id,
+            'issue_status' => $issue->issue_status,
+        ]));
 
         return response()->json([
             'status'  => true,

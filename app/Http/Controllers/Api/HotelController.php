@@ -9,6 +9,8 @@ use App\Models\Hotel;
 use App\Models\Hotel_Style;
 use App\Models\Image;
 use App\Models\Room;
+use App\Models\Comment;
+use App\Models\Style;
 use CloudinaryLabs\CloudinaryLaravel\Facades\Cloudinary;
 use App\Services\HotelService;
 use Illuminate\Http\Request;
@@ -132,6 +134,83 @@ class HotelController extends Controller
                 'status'=>500,
                 'error'=>$th->getMessage($th)
             ]);
+        }
+    }
+
+    public function fullDetails($id)
+    {
+        try {
+            $hotel = Hotel::with([
+                'styles', 
+                'images:id,reference_id,url,type', 
+                'rooms:id,hotel_id,room_type,price,quantity,max_guest'
+            ])->findOrFail($id);
+            $totalRooms = Room::where('hotel_id', $id)->sum('quantity');
+
+            // 1. Comments & Stats
+            $comments = Comment::where('maHotel', $id)
+                ->whereNull('parent_id')
+                ->with(['replies' => function($q) {
+                    $q->select('id', 'parent_id', 'comment', 'userName', 'userAvatar', 'time');
+                }])
+                ->orderBy('created_at', 'desc')
+                ->get(['id', 'userId', 'comment', 'userName', 'userAvatar', 'time', 'rating', 'maHotel']);
+
+            $stats = DB::table('comments')
+                ->where('maHotel', $id)
+                ->whereNotNull('rating')
+                ->selectRaw('AVG(rating) as average_rating, COUNT(*) as total_reviews')
+                ->first();
+
+            // 2. Same Province
+            $sameProvinceHotels = Hotel::query()
+                ->select(['id', 'name', 'province', 'hotel_class', 'price', 'description'])
+                ->where('province', $hotel->province)
+                ->where('id', '!=', $id)
+                ->with(['firstimage:id,reference_id,url'])
+                ->limit(4)
+                ->get();
+
+            // 3. Similar Hotels
+            $styleIds = $hotel->styles->pluck('id')->toArray();
+            $similarHotels = [];
+            if (!empty($styleIds)) {
+                $similarHotels = Hotel::query()
+                    ->select(['id', 'name', 'province', 'hotel_class', 'price', 'description'])
+                    ->with(['firstimage:id,reference_id,url'])
+                    ->whereHas('styles', function($query) use ($styleIds) {
+                        $query->whereIn('styles.id', $styleIds);
+                    })
+                    ->where('id', '!=', $id)
+                    ->limit(4)
+                    ->get();
+            }
+
+            return response()->json([
+                'status' => 200,
+                'data' => [
+                    'hotel' => $hotel,
+                    'totalRooms' => $totalRooms,
+                    'comments' => $comments,
+                    'reviewStats' => [
+                        'average_rating' => round($stats->average_rating ?? 0, 1),
+                        'total_reviews' => $stats->total_reviews,
+                        'service_staff' => 85, 
+                        'convenient' => 90,
+                        'free_wifi' => 80,
+                        'clean' => 88,
+                        'value_for_money' => 92,
+                        'comfortable' => 95
+                    ],
+                    'sameProvinceHotels' => $sameProvinceHotels,
+                    'similarHotels' => $similarHotels
+                ]
+            ]);
+        } catch (\Throwable $th) {
+            return response()->json([
+                'status' => 500,
+                'error' => $th->getMessage()
+            ], 500);
         }
     }
 

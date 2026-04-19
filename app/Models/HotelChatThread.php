@@ -16,6 +16,8 @@ class HotelChatThread extends Model
         'hm_id',
         'status',
         'last_message',
+        'hm_unread_count',
+        'hm_last_read_at',
     ];
 
     public function hotel()

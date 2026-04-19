@@ -23,7 +23,13 @@ class HotelChatController extends Controller
 
         $thread = HotelChatThread::firstOrCreate(
             ['hotel_id' => $hotelId, 'user_id' => $user->id],
-            ['hm_id' => $hotel->user_id ?? null, 'status' => 'open', 'last_message' => null]
+            [
+                'hm_id' => $hotel->user_id ?? null,
+                'status' => 'open',
+                'last_message' => null,
+                'hm_unread_count' => 0,
+                'hm_last_read_at' => null,
+            ]
         );
 
         return response()->json(['status' => 200, 'thread' => $thread]);
@@ -33,7 +39,7 @@ class HotelChatController extends Controller
     {
         $user = $request->user();
 
-        $thread = HotelChatThread::with('messages')->find($threadId);
+        $thread = HotelChatThread::find($threadId);
         if (!$thread) {
             return response()->json(['status' => 404, 'message' => 'Thread not found'], 404);
         }
@@ -42,7 +48,30 @@ class HotelChatController extends Controller
             return response()->json(['status' => 403, 'message' => 'Forbidden'], 403);
         }
 
-        return response()->json(['status' => 200, 'thread' => $thread, 'messages' => $thread->messages]);
+        $perPage = max(20, min((int) $request->query('per_page', 40), 100));
+        $page = max(1, (int) $request->query('page', 1));
+
+        $messagesQuery = $thread->messages()->orderBy('created_at', 'desc');
+        $messagesPaginator = $messagesQuery->paginate($perPage, ['*'], 'page', $page);
+
+        if ((int) $user->role === 2 && $thread->hm_id === $user->id && (int) $thread->hm_unread_count > 0) {
+            $thread->update([
+                'hm_unread_count' => 0,
+                'hm_last_read_at' => now(),
+            ]);
+        }
+
+        return response()->json([
+            'status' => 200,
+            'thread' => $thread,
+            'messages' => $messagesPaginator->getCollection()->reverse()->values(),
+            'pagination' => [
+                'current_page' => $messagesPaginator->currentPage(),
+                'last_page' => $messagesPaginator->lastPage(),
+                'per_page' => $messagesPaginator->perPage(),
+                'has_more' => $messagesPaginator->hasMorePages(),
+            ],
+        ]);
     }
 
     public function getHMThreads(Request $request)
@@ -56,7 +85,11 @@ class HotelChatController extends Controller
         $threads = HotelChatThread::with(['hotel', 'user'])
             ->where('hm_id', $user->id)
             ->orderBy('updated_at', 'desc')
-            ->get();
+            ->get()
+            ->map(function ($thread) {
+                $thread->hotel_group = $thread->hotel?->name ? mb_strtoupper(mb_substr($thread->hotel->name, 0, 1)) : 'H';
+                return $thread;
+            });
 
         return response()->json(['status' => 200, 'threads' => $threads]);
     }
@@ -89,10 +122,18 @@ class HotelChatController extends Controller
             'type' => 'text',
         ]);
 
-        $thread->update([
+        $threadUpdate = [
             'last_message' => $content,
             'status' => 'open',
-        ]);
+        ];
+
+        if ((int) $user->role === 2) {
+            $threadUpdate['hm_last_read_at'] = now();
+        } else {
+            $threadUpdate['hm_unread_count'] = ((int) $thread->hm_unread_count) + 1;
+        }
+
+        $thread->update($threadUpdate);
 
         try {
             // Broadcast cho thread (room chat hiện tại)
@@ -100,10 +141,7 @@ class HotelChatController extends Controller
 
             // Broadcast cho manager (để update sidebar/danh sách chat)
             if ($thread->hm_id) {
-                broadcast(new HotelChatMessageSent($thread, $message))
-                    ->toOthers()
-                    ->onQueue('default')
-                    ->broadcastOn([new \Illuminate\Broadcasting\PrivateChannel('hotel-manager.' . $thread->hm_id)]);
+                broadcast(new HotelChatMessageSent($thread, $message));
             }
         } catch (\Exception $e) {
             Log::error('HotelChat broadcast error: '. $e->getMessage());

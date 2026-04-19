@@ -20,6 +20,8 @@ return new class extends Migration
             $table->unsignedBigInteger('hm_id')->nullable();
             $table->string('status')->default('open');
             $table->text('last_message')->nullable();
+            $table->unsignedInteger('hm_unread_count')->default(0);
+            $table->timestamp('hm_last_read_at')->nullable();
             $table->timestamps();
 
             $table->foreign('hotel_id')->references('id')->on('hotels')->onDelete('cascade');

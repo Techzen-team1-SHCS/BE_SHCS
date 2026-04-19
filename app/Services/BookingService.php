@@ -87,7 +87,8 @@ class BookingService
 
             if (!empty($selectedRoomNumbers)) {
                 foreach ($bookingHoldKeys as $holdKey) {
-                    if (!Cache::add($holdKey, $userId, $holdDuration)) {
+                    $currentHolder = Cache::get($holdKey);
+                    if ($currentHolder !== null && (string) $currentHolder !== (string) $userId) {
                         DB::rollBack();
                         return [
                             'success' => false,
@@ -95,6 +96,7 @@ class BookingService
                             'message' => 'Một hoặc nhiều số phòng bạn chọn đang được giữ tạm thời bởi người khác. Vui lòng chọn phòng khác hoặc thử lại sau vài phút.'
                         ];
                     }
+                    Cache::put($holdKey, (string) $userId, $holdDuration);
                 }
 
                 $conflictingRoomNumbers = Booking::query()

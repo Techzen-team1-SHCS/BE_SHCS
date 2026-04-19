@@ -24,6 +24,7 @@ Broadcast::channel('hotel-manager.{userId}', function ($user, $userId) {
     return (int) $user->id === (int) $userId && (int) $user->role === 2;
 });
 
+
 Broadcast::channel('hotel-chat.{threadId}', function ($user, $threadId) {
     $thread = \App\Models\HotelChatThread::find($threadId);
     if (!$thread) {
@@ -37,4 +38,12 @@ Broadcast::channel('hotel-chat.{threadId}', function ($user, $threadId) {
 // Private channel cho Admin — chỉ role=1
 Broadcast::channel('admin.{userId}', function ($user, $userId) {
     return (int) $user->id === (int) $userId && (int) $user->role === 1;
+});
+
+Broadcast::channel('hotel-manager.housekeeping', function ($user) {
+    return (int) $user->role === 2;
+});
+
+Broadcast::channel('hotel-manager.housekeeping.hotel.{hotelId}', function ($user, $hotelId) {
+    return (int) $user->role === 2 && !empty($hotelId);
 });

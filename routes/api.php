@@ -58,6 +58,7 @@ Route::group(['prefix' => 'auth'], function () {
     //Hotel
     Route::get('hotels/{id}/same-style', [HotelController::class, 'sameStyle']);
     Route::get('hotels/{id}/same-province', [HotelController::class, 'sameProvince']);
+    Route::get('/hotel/{id}/full-details', [HotelController::class, 'fullDetails']);
     Route::get('/hotel/{id}', [HotelController::class, 'show']);
     Route::post('/import-hotels-excel', [HotelController::class, 'importHotelStyles']);
     Route::get('/tophotels', [HotelController::class, 'topHotels']);
