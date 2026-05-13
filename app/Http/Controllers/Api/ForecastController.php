@@ -16,6 +16,16 @@ class ForecastController extends Controller
     /**
      * Flow chuẩn mới: chỉ gửi daily delta (ngày hôm qua) sang AI.
      */
+
+    public function latest(Request $request)
+    {
+        $hotelIdInput = (string) $request->input('hotel_id');
+
+        $result = $this->forecastService->getLatestForecast($hotelIdInput);
+
+        return response()->json($result['body'], $result['status']);
+    }
+
     public function forecast(Request $request)
     {
         $validator = Validator::make($request->all(), [

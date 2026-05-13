@@ -81,7 +81,7 @@ Route::group(['prefix' => 'auth'], function () {
     // AI Forecast
     Route::post('/forecast', [ForecastController::class, 'forecast']);
     Route::post('/forecast/bootstrap', [ForecastController::class, 'bootstrapForecast']);
-
+    Route::get('/forecast/latest', [ForecastController::class, 'latest']);
     //Ticket Support
     Route::post('/support-tickets', [SupportTicketController::class, 'store']);
 

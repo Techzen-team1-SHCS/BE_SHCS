@@ -16,7 +16,52 @@ class ForecastService
     {
         return env('AI_FORECAST_URL', 'https://spyglass-splendid-unrivaled.ngrok-free.dev/forecast');
     }
+    
+    public function getLatestForecast(string $hotelIdInput): array
+    {
+        $resolved = $this->resolveHotel($hotelIdInput);
+        $hotelId = $resolved['hotel_id'];
+        $hotelName = $resolved['hotel_name'];
+        $hotelRef = $resolved['hotel_ref'];
 
+        if (!$hotelId && !$hotelName) {
+            return [
+                'ok' => false,
+                'status' => 400,
+                'body' => [
+                    'message' => 'Không tìm thấy khách sạn',
+                ],
+            ];
+        }
+
+        $latest = ForecastCache::where('hotel_ref', $hotelRef)
+            ->orderByDesc('created_at')
+            ->first();
+
+        if (!$latest) {
+            return [
+                'ok' => true,
+                'status' => 200,
+                'body' => [
+                    'message' => 'Chưa có dữ liệu forecast',
+                    'from_db_cache' => false,
+                    'ai_result' => null,
+                ],
+            ];
+        }
+
+        return [
+            'ok' => true,
+            'status' => 200,
+            'body' => [
+                'message' => 'Lấy forecast mới nhất thành công',
+                'from_db_cache' => true,
+                'ai_result' => $latest->ai_result,
+                'mode' => $latest->mode,
+                'created_at' => $latest->created_at,
+            ],
+        ];
+    }
     public function resolveHotel(string $hotelIdInput): array
     {
         $hotelName = null;
