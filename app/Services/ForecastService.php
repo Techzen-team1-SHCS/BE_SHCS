@@ -37,29 +37,6 @@ class ForecastService
         ];
     }
 
-    public function getLatestCachedResult(string $hotelRef, int $horizonDays, string $mode = 'daily_delta'): ?array
-    {
-        $record = ForecastCache::query()
-            ->where('hotel_ref', $hotelRef)
-            ->where('horizon_days', $horizonDays)
-            ->where('mode', $mode)
-            ->latest('id')
-            ->first();
-
-        if (!$record) {
-            return null;
-        }
-
-        return [
-            'message' => 'Lấy forecast từ DB cache thành công.',
-            'mode' => $mode,
-            'from_db_cache' => true,
-            'cached_at' => optional($record->created_at)?->toDateTimeString(),
-            'payload_sent' => $record->payload_sent,
-            'ai_result' => $record->ai_result,
-        ];
-    }
-
     public function generateForecastDailyDelta(string $hotelIdInput, int $hotelCapacity, int $horizonDays): array
     {
         $resolved = $this->resolveHotel($hotelIdInput);

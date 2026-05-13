@@ -40,7 +40,7 @@ class HM_HotelController extends Controller
                 ->with([
                     'images',
                     'styles',
-                    'rooms:id,hotel_id,availability_status' // Rút gọn select
+                    'rooms:id,hotel_id,room_type,price,availability_status'
                 ])
                 ->withSum([
                     'bookings as revenue' => function ($query) use ($today) {

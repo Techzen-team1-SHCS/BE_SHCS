@@ -37,7 +37,7 @@ class HM_RoomController extends Controller
             $q->select('id', 'name'); 
         }])
         ->latest()
-        ->paginate(10); // Thêm phân trang
+        ->paginate(10);
 
         return response()->json([
             'status'  => true,

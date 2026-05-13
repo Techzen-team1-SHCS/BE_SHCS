@@ -37,12 +37,6 @@ class ForecastController extends Controller
 
         $resolved = $this->forecastService->resolveHotel($hotelIdInput);
         $hotelRef = $resolved['hotel_ref'];
-
-        $cached = $this->forecastService->getLatestCachedResult($hotelRef, $horizonDays, 'daily_delta');
-        if ($cached) {
-            return response()->json($cached, 200);
-        }
-
         $result = $this->forecastService->generateForecastDailyDelta($hotelIdInput, $hotelCapacity, $horizonDays);
 
         return response()->json($result['body'], $result['status']);
